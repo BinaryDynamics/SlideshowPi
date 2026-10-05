@@ -68,6 +68,10 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         if host not in allowed:
             address = next((a['address'] for a in network.get('addresses', [])), hotspot_ip)
             return redirect('http://' + address + '/', code=302)
+        if request.path == '/api/cec-control':
+            if request.environ.get('slideshow.local_playback') is not True or request.method != 'POST':
+                return jsonify(error='CEC controls are private to this device.'), 403
+            return None
         if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
             if not secrets.compare_digest(request.headers.get('X-Slideshow-Token', ''), token):
                 return jsonify(error='Reload this page before making changes.'), 403
@@ -186,7 +190,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.post('/api/admin/action')
     def admin_action():
         payload = request.get_json()
-        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save'):
+        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save', 'cec-save'):
             raise ValueError('Unknown admin action.')
         result = admin.call(**payload)
         if payload['action'] == 'admin-password':
@@ -211,6 +215,18 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.post('/api/settings')
     def settings():
         library.update(request.get_json())
+        return jsonify(ok=True)
+
+    @app.post('/api/cec-control')
+    def cec_control():
+        from .cec import ACTIONS
+        network = admin.status()
+        if not network.get('available', True) or not network.get('cec_enabled', True):
+            return jsonify(error='CEC control is disabled or unavailable.'), 403
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or payload.get('action') not in ACTIONS:
+            raise ValueError('Unknown CEC control.')
+        library.control({'action': payload['action']})
         return jsonify(ok=True)
 
     @app.post('/api/control')

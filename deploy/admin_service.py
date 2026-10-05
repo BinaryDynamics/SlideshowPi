@@ -163,6 +163,7 @@ def initialize(config=CONFIG, setup=None):
         atomic(config / 'network.json', json.dumps({'mode': 'hotspot', 'home': None,
                                                    'profile_uuid': str(uuid.uuid4())}))
     network = json.loads((config / 'network.json').read_text())
+    network['cec_enabled'] = setup['cec_enabled'] if setup and setup.get('cec_custom') else network.get('cec_enabled', True)
     network['hotspot_network'] = ap_network
     if setup:
         network.update(mode=setup.get('network_mode', 'hotspot'), home=setup.get('home'))
@@ -201,6 +202,7 @@ class Manager:
         self.status_addresses = []
         self.stats = {}
         self.display = None
+        self.cec_status = 'Starting HDMI-CEC.'
         self.lost_since = None
         self.settings = json.loads((self.config / 'network.json').read_text())
 
@@ -212,7 +214,8 @@ class Manager:
             ap = ap_values(self.config / 'hostapd.conf')
             home = self.settings.get('home')
             photo = json.loads((self.config / 'photo-auth.json').read_text())
-            return {'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
+            return {'cec_enabled': self.settings.get('cec_enabled', True), 'cec_status': self.cec_status,
+                    'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
                     'available': True, 'mode': self.settings['mode'],
                     'addresses': list(self.status_addresses), 'hostname': socket.gethostname(),
                     'hotspot_ssid': ap.get('ssid', ''), 'country': ap.get('country_code', 'GB'),
@@ -236,6 +239,18 @@ class Manager:
         if not isinstance(payload, dict):
             raise ValueError('Expected an action object.')
         action = payload.get('action')
+        if action == 'cec-save':
+            if type(payload.get('enabled')) is not bool:
+                raise ValueError('CEC enabled must be true or false.')
+            with self.lock:
+                previous = self.settings.get('cec_enabled', True)
+                self.settings['cec_enabled'] = payload['enabled']
+                try:
+                    self.save()
+                except Exception:
+                    self.settings['cec_enabled'] = previous
+                    raise
+            return {'ok': True, 'message': 'TV remote settings saved.'}
         if action == 'status':
             return self.status()
         if action == 'photo-authenticate':
@@ -488,6 +503,8 @@ def main():
         os.chown(path, 0, owner.pw_gid)
         os.chmod(path, 0o660)
         server.listen(8)
+        from slideshow.cec import run as cec_run
+        threading.Thread(target=cec_run, args=(manager,), daemon=True, name='hdmi-cec').start()
         threading.Thread(target=manager.work, daemon=True).start()
         threading.Thread(target=manager.monitor, daemon=True).start()
         while True:

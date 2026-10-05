@@ -81,6 +81,9 @@ def load_config(path=None, default_country='GB'):
                     password=password(saved.get('password'), psk=True) if security == 'wpa' else '')
     if mode == 'client' and not home:
         raise ValueError('Client mode requires home_wifi credentials.')
+    cec = raw.get('cec', {})
+    if not isinstance(cec, dict) or type(cec.get('enabled', True)) is not bool:
+        raise ValueError('cec.enabled must be true or false.')
     photo = raw.get('photo_access', {})
     enabled = photo.get('enabled', False)
     if type(enabled) is not bool:
@@ -90,7 +93,7 @@ def load_config(path=None, default_country='GB'):
         raise ValueError('photo_access.password must be text.')
     if enabled or photo_password:
         photo_password = password(photo_password or secrets.token_urlsafe(18), admin=True)
-    return dict(country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
+    return dict(cec_enabled=cec.get('enabled', True), cec_custom='cec' in raw, country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
                 admin_password=password(raw.get('admin', {}).get('password') or secrets.token_urlsafe(18), admin=True),
                 network_mode=mode, home=home, photo_access=dict(enabled=enabled, password=photo_password),
                 photo_access_custom='photo_access' in raw, playback=playback_settings(raw.get('slideshow', {})),
@@ -114,7 +117,7 @@ def playback_settings(values):
 
 def config_text(setup):
     """Write resolved defaults, so generated passwords remain stable between boots."""
-    sections = dict(device=dict(country=setup['country']),
+    sections = dict(cec=dict(enabled=setup.get('cec_enabled', True)), device=dict(country=setup['country']),
                     hotspot=dict(ssid=setup['ssid'], password=setup['password'], **setup['hotspot_network']),
                     admin=dict(password=setup['admin_password']), photo_access=setup.get('photo_access', dict(enabled=False, password='')), network=dict(mode=setup['network_mode']),
                     home_wifi=setup.get('home') or dict(ssid='', password='', security='wpa', hidden=False),

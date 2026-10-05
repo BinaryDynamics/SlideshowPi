@@ -33,3 +33,7 @@ fit = "contain" # contain: fit entire image; cover: fill screen and crop.
 [photo_access]
 enabled = false # Optional password on photo management and browser image access.
 password = "" # When enabled, blank generates a unique password; custom: 12-128 characters.
+
+# TV remote controls; requires HDMI-CEC enabled on the TV.
+[cec]
+enabled = true

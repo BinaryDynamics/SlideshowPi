@@ -166,8 +166,8 @@ class Library:
     def control(self, payload):
         action = payload.get('action')
         with self.lock:
-            if action in ('play', 'pause'):
-                self.playing = action == 'play'
+            if action in ('play', 'pause', 'toggle'):
+                self.playing = not self.playing if action == 'toggle' else action == 'play'
             elif action in ('next', 'previous'):
                 self.advance(1 if action == 'next' else -1)
             elif action == 'show':

@@ -228,3 +228,26 @@ python tools/package.py
 Automated tests cover playback, uploads, storage boundaries, CSRF/admin authentication, actual-LAN host checks, configuration parsing, root-operation allowlisting, failed Wi-Fi recovery and SD-update preservation. Tests cannot establish real Wi-Fi association, DHCP, boot, HDMI or Pi performance. Slideshow display and quality have been exercised on an original Zero W; the new administration/network-switching release still requires hardware verification.
 
 Licensed under [MIT](LICENSE). Contributions are welcome; include reproduction steps and tests, and remove credentials/photos/private network details from reports.
+
+### TV remote controls (HDMI-CEC)
+
+CEC is enabled by default on both supported Pi Zero models. Enable HDMI-CEC in your TV settings (sometimes called Anynet+, Simplink, BRAVIA Sync or VIERA Link), and select the Pi's HDMI input. The HDMI cable and any adapters must carry CEC. TVs differ in which remote buttons they forward.
+
+| Remote button | Slideshow action |
+| --- | --- |
+| Left, Previous or Rewind | Previous photo |
+| Right, Next or Fast-forward | Next photo |
+| OK / Select / Enter | Toggle play and pause |
+| Play | Resume slideshow |
+| Pause or Stop | Pause on the current photo |
+
+Navigation preserves the current play/pause state. Holding OK toggles once per press; held navigation repeats at a limited rate. CEC controls work even when browser photo management requires a password. They cannot change administration settings. Power and volume buttons retain their TV behavior; SlideshowPi sends no TV wake, standby or input-switch commands.
+
+In `/admin`, use **TV remote control (HDMI-CEC)** to disable or re-enable controls without restarting. The same setting is available in `slideshowpi.conf`:
+
+```toml
+[cec]
+enabled = true
+```
+
+Admin shows whether CEC is ready, waiting for HDMI, or unavailable. Missing or unsupported CEC does not interrupt the slideshow; the device retries automatically. This uses the Linux `/dev/cec*` interface and needs no extra packages. Another application using the adapter may prevent CEC control. Keep the normal KMS driver enabled and avoid configuring another CEC controller alongside SlideshowPi. Automated tests cover the input and access rules; TV interoperability still requires testing on your hardware.

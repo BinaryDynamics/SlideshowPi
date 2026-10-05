@@ -51,6 +51,11 @@
       <label class="check"><input id="recursive" type="checkbox">Include subfolders</label>
       <button class="primary">Save slideshow settings</button>
     </form><form id="admin-folders-form"><h2>Photo folders</h2><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
+    <section class="card"><h2>TV remote control (HDMI-CEC)</h2><form id="cec-form">
+      <label class="check"><input id="cec-enabled" type="checkbox" checked>Enable TV remote controls</label>
+      <p class="hint">Enabled by default. Left / Right: previous / next photo. OK: play / pause. Play, Pause and Stop are also supported. Enable CEC on your TV; supported buttons vary by TV. Changes apply without restarting.</p>
+      <p id="cec-status" class="hint" role="status"></p><button class="primary">Save TV remote settings</button>
+    </form></section>
     <section class="card"><h2>Photo management access</h2><form id="photo-access-form">
       <label class="check"><input id="photo-access-enabled" type="checkbox">Require a password to view and manage photos</label>
       <label for="photo-access-password">Photo management password</label><input id="photo-access-password" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Leave blank to keep the saved photo password">
