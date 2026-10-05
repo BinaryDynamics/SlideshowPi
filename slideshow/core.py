@@ -117,6 +117,34 @@ class Library:
         self.allowed(item['path'])
         return item
 
+    def delete(self, image_id, stamp):
+        if not isinstance(image_id, str) or not isinstance(stamp, str):
+            raise ValueError('Choose a photo from the current library before deleting.')
+        # Match scan lock order: a concurrent scan must not resurrect the entry.
+        with self.scan_lock, self.lock:
+            item = self.find(image_id)
+            path = Path(item['path'])
+            try:
+                if path.is_symlink() or self.allowed(path) != path or not path.is_file():
+                    raise ValueError('Photo is unavailable or its storage location has changed. Refresh the library.')
+                stat = path.stat()
+                if stamp != item['stamp'] or stamp != f'{stat.st_mtime_ns}-{stat.st_size}':
+                    raise ValueError('Photo has changed. Refresh the library before deleting it.')
+                path.unlink()
+            except OSError as error:
+                raise ValueError('Cannot delete this photo. Check that the storage is connected and writable.') from error
+            index = next(i for i, photo in enumerate(self.images) if photo['id'] == image_id)
+            self.images.pop(index)
+            if self.current == image_id:
+                self.current = self.images[index % len(self.images)]['id'] if self.images else None
+                self.deadline = time.monotonic() + self.settings['seconds']
+            if image_id in self.settings['rotations']:
+                del self.settings['rotations'][image_id]
+                try:
+                    self.save()
+                except OSError as error:
+                    raise ValueError('Photo deleted, but rotation settings could not be saved.') from error
+
     def advance(self, direction=1):
         with self.lock:
             ids = [i['id'] for i in self.images]

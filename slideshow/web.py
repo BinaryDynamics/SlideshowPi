@@ -237,6 +237,16 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         library.control(payload)
         return jsonify(ok=True)
 
+    @app.post('/api/delete')
+    def delete_photo():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValueError('Choose a photo to delete.')
+        with DECODE_LOCK:
+            library.delete(payload.get('id'), payload.get('stamp'))
+            frame_cache[:] = [None, None]
+        return jsonify(ok=True)
+
     @app.post('/api/rescan')
     def rescan():
         library.scan()

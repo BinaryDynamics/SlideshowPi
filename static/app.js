@@ -34,6 +34,7 @@ function populateFolders(next) {
 }
 async function loadGallery() {
   const result = await api('images?page=' + page + '&q=' + encodeURIComponent(search));
+  if (page > 0 && page * 36 >= result.total) { page = Math.max(0, Math.ceil(result.total / 36) - 1); return loadGallery(); }
   const key = JSON.stringify(result);
   if (galleryKey === key) return;
   galleryKey = key;
@@ -47,7 +48,14 @@ async function loadGallery() {
     const show = document.createElement('button'); show.textContent = 'Show'; show.onclick = guarded(() => control('show', photo.id));
     const rotateLeft = document.createElement('button'); rotateLeft.textContent = '↶ Left'; rotateLeft.setAttribute('aria-label', 'Rotate anticlockwise'); rotateLeft.onclick = guarded(async () => { await control('rotate', photo.id, -90); image.src = '/api/thumbnail/' + photo.id + '?v=' + Date.now(); });
     const rotateRight = document.createElement('button'); rotateRight.textContent = 'Right ↷'; rotateRight.setAttribute('aria-label', 'Rotate clockwise'); rotateRight.onclick = guarded(async () => { await control('rotate', photo.id, 90); image.src = '/api/thumbnail/' + photo.id + '?v=' + Date.now(); });
-    buttons.append(show, rotateLeft, rotateRight); caption.append(name, buttons); card.append(image, caption); $('gallery').append(card);
+    const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.setAttribute('aria-label', 'Delete ' + photo.name);
+    remove.onclick = guarded(async () => {
+      if (!confirm(`Permanently delete "${photo.name}" from its storage? This cannot be undone.`)) return;
+      remove.disabled = true;
+      try { await api('delete', {id: photo.id, stamp: photo.stamp}); galleryKey = ''; notice('Photo deleted.'); await poll(); }
+      finally { remove.disabled = false; }
+    });
+    buttons.append(show, rotateLeft, rotateRight, remove); caption.append(name, buttons); card.append(image, caption); $('gallery').append(card);
   }
   if (!result.items.length) { const empty = document.createElement('p'); empty.textContent = 'No photos found in the selected folders.'; $('gallery').append(empty); }
   $('page-back').disabled = page === 0;

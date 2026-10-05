@@ -7,6 +7,7 @@ Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It start
 - Select multiple SD-card or USB folders, with optional subfolders.
 - Upload JPEG, PNG, WebP or BMP; originals are preserved.
 - Play, pause, previous/next, select a specific photo, rotate, shuffle, and set speed.
+- Delete photos from SD or mounted USB storage with confirmation.
 - Fit the whole photo or fill the screen by cropping; automatic screen-size detection.
 - Full HD rendering, Lanczos resizing, high-quality JPEG output and smooth scaling.
 - Small network mode, Wi-Fi name and IP overlay in the top-left corner of the TV.
@@ -251,3 +252,7 @@ enabled = true
 ```
 
 Admin shows whether CEC is ready, waiting for HDMI, or unavailable. Missing or unsupported CEC does not interrupt the slideshow; the device retries automatically. This uses the Linux `/dev/cec*` interface and needs no extra packages. Another application using the adapter may prevent CEC control. Keep the normal KMS driver enabled and avoid configuring another CEC controller alongside SlideshowPi. Automated tests cover the input and access rules; TV interoperability still requires testing on your hardware.
+
+### Deleting photos
+
+Use **Delete** below a photo in the web photo library, then confirm its filename. This permanently removes the original from its SD or USB folder; it cannot be undone. Read-only or disconnected storage is rejected. Browser password protection, when enabled, also protects deletion. If the current photo is deleted, the TV moves to the next available photo while keeping its play/pause state; deleting the last photo shows the empty slideshow screen. Refresh the library if a file has changed since the thumbnail loaded.
