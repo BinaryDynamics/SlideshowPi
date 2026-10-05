@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi Slideshow WPA2 access point
+Requires=pi-slideshow-hotspot.service
+After=pi-slideshow-hotspot.service
+
+[Service]
+ExecStart=/usr/sbin/hostapd /etc/pi-slideshow/hostapd.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

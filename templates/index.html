@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slideshow-token" content="{{ token }}">
+  <title>SlideshowPi</title><link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<header><div><span class="eyebrow">YOUR PHOTOS. ON THE BIG SCREEN.</span><h1>SlideshowPi</h1></div><span id="connection" class="badge">Connecting…</span></header>
+<main>
+  <p class="hint"><a href="/admin">Device administration</a></p>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <section class="card live">
+    <div class="preview"><img id="current-preview" alt="Current TV image" hidden><p id="empty">Upload photos and select a folder to begin.</p></div>
+    <div><span class="eyebrow">NOW ON YOUR TV</span><h2 id="current-name">Ready for photos</h2><p id="status">Loading…</p>
+      <div class="buttons"><button id="previous" aria-label="Previous image">← Previous</button><button id="play" class="primary">Pause</button><button id="next">Next →</button></div>
+      <div class="buttons"><button id="rotate-left">↶ Rotate left</button><button id="rotate-right">↷ Rotate right</button></div>
+      <p class="hint">Selecting a photo holds it on the TV. Press Play to resume.</p>
+    </div>
+  </section>
+  <div class="columns">
+    <section class="card"><h2>Playback</h2><form id="playback-form">
+      <label for="seconds">Seconds per photo</label><input id="seconds" type="number" min="1" max="3600" step="1" value="10" required>
+      <label for="fit">Display mode</label><select id="fit"><option value="contain">Fit entire image · black borders</option><option value="cover">Fill screen · crop edges</option></select>
+      <label class="check"><input id="shuffle" type="checkbox">Shuffle photos</label>
+      <label class="check"><input id="recursive" type="checkbox" checked>Include subfolders</label>
+      <button class="primary" type="submit">Save playback settings</button>
+    </form></section>
+    <section class="card"><h2>Photo folders</h2><p class="hint">Choose one or more folders on the SD card or connected USB drives.</p>
+      <form id="folders-form"><div id="folder-list" class="folder-list"></div><button class="primary" type="submit">Use selected folders</button> <button type="button" id="rescan">Refresh storage</button></form>
+      <p id="missing" class="hint"></p>
+    </section>
+  </div>
+  <section class="card"><h2>Add photos</h2><div class="columns">
+    <form id="upload-form"><label for="destination">Destination folder</label><select id="destination" required></select>
+      <label for="photos">Select photos</label><input id="photos" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" multiple required>
+      <p class="hint">JPEG, PNG, WebP or BMP. Up to 32 MB and 24 megapixels per photo. Originals are preserved; rotation changes the display only.</p>
+      <button class="primary" id="upload-button" type="submit">Upload photos</button><progress id="progress" max="100" value="0" hidden></progress><p id="upload-status" role="status"></p>
+    </form>
+    <form id="new-folder-form"><label for="parent">New folder location</label><select id="parent" required></select><label for="folder-name">Folder name</label><input id="folder-name" maxlength="100" placeholder="Holiday photos" required><button type="submit">Create folder</button></form>
+  </div></section>
+  <section class="card"><div class="library-heading"><div><h2>Photo library</h2><p class="hint">Tap Show to put a specific photo on the TV.</p></div><input id="search" type="search" placeholder="Search filenames" aria-label="Search filenames"></div>
+    <div id="gallery" class="gallery"></div><div class="pagination"><button id="page-back">← Back</button><span id="page-label"></span><button id="page-next">More →</button></div>
+  </section>
+</main><footer>SlideshowPi · Works offline · <a href="/admin">Device administration</a></footer>
+</body></html>

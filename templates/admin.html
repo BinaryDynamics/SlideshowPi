@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slideshow-token" content="{{ token }}">
+  <title>Device administration · SlideshowPi</title>
+  <link rel="stylesheet" href="/static/style.css"><script defer src="/static/admin.js"></script>
+</head>
+<body>
+<header><div><span class="eyebrow">SLIDESHOWPI</span><h1>Device administration</h1></div><a href="/">Back to photos</a></header>
+<main>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <section id="login-card" class="card"><h2>Admin sign-in</h2>
+    <p class="hint">Use the admin password set in slideshowpi.conf. It is separate from the Wi-Fi password.</p>
+    <form id="login-form"><label for="admin-password">Admin password</label><input type="password" id="admin-password" autocomplete="current-password" required maxlength="128">
+    <button class="primary">Sign in</button></form>
+  </section>
+  <div id="admin-content" hidden>
+    <section class="card"><h2>Connection</h2><p id="network-summary"></p><div id="addresses"></div><p id="operation" class="hint"></p>
+      <p class="hint">When changing Wi-Fi mode, this page may disconnect. Join the new network, then use the IP address shown in the top-left corner of the TV.</p>
+    </section>
+    <div class="columns">
+      <section class="card"><h2>Hotspot</h2><form id="hotspot-form">
+        <label for="hotspot-ssid">Hotspot name</label><input id="hotspot-ssid" required maxlength="32" autocomplete="off">
+        <label for="hotspot-password">New hotspot password</label><input type="password" id="hotspot-password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="Leave blank to keep the current password">
+        <p class="hint">Changing an active hotspot disconnects connected phones. A new name or password also requires a new printed Wi-Fi QR code.</p>
+        <button class="primary">Save hotspot settings</button>
+      </form><div class="buttons"><button id="switch-hotspot">Switch to hotspot mode</button></div></section>
+      <section class="card"><h2>Connect to existing Wi-Fi</h2><form id="home-form">
+        <label for="home-ssid">Network name</label><input id="home-ssid" required maxlength="32" autocomplete="off">
+        <label for="home-security">Network security</label><select id="home-security"><option value="wpa">WPA / WPA2 personal</option><option value="open">Open network</option></select>
+        <label for="home-password">Wi-Fi password</label><input type="password" id="home-password" minlength="8" maxlength="64" autocomplete="new-password" placeholder="Leave blank to reuse the saved password">
+        <label class="check"><input type="checkbox" id="home-hidden">Hidden network</label>
+        <p class="hint">The Zero W uses 2.4 GHz Wi-Fi. Joining this network turns off the hotspot. If joining fails, the hotspot returns automatically. Guest networks may block phones from reaching the Pi.</p>
+        <button class="primary">Save and connect</button>
+      </form></section>
+    </div>
+    <section class="card"><div class="library-heading"><h2>System diagnostics</h2><button id="refresh">Refresh now</button></div>
+      <p class="hint">Updates every 5 seconds. CPU use is measured between samples.</p>
+      <dl id="stats" class="stats-grid"></dl>
+      <h2>Storage</h2><div id="storage"></div>
+      <h2>Services</h2><div id="services"></div>
+      <p id="sample-time" class="hint"></p>
+    </section>
+    <section class="card"><h2>Restart device</h2><p class="hint">The slideshow and Wi-Fi connection will stop briefly. Wait for the device to start again before reconnecting.</p>
+      <div class="buttons"><button id="reboot">Restart device</button><button id="logout">Sign out</button></div>
+    </section>
+  </div>
+</main>
+</body></html>

@@ -1,0 +1,20 @@
+# Copy to slideshowpi.conf, fill in your own details, and keep it out of Git.
+# TOML format. Passwords containing backslashes are easier in single quotes.
+[device]
+country = "GB" # Your actual two-letter wireless country code.
+
+[hotspot]
+ssid = "SlideshowPi"
+password = "CHANGE_ME_HOTSPOT_PASSWORD" # 8-63 printable characters.
+
+[admin]
+password = "CHANGE_ME_ADMIN_PASSWORD" # 12-128 printable characters; use a different password.
+
+[network]
+mode = "hotspot" # hotspot or client. Failed client connections recover to hotspot.
+
+[home_wifi]
+ssid = "" # Optional saved home network; required for client mode.
+password = ""
+security = "wpa" # wpa for WPA/WPA2 personal; open for a network without a password.
+hidden = false

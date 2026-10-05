@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi Slideshow dedicated Wi-Fi interface
+After=NetworkManager.service
+Before=pi-slideshow-ap.service pi-slideshow-dns.service pi-slideshow-web.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pi-slideshow/deploy/hotspot-start.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

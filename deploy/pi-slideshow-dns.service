@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi Slideshow captive DNS and DHCP
+Requires=pi-slideshow-hotspot.service
+After=pi-slideshow-hotspot.service
+
+[Service]
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/pi-slideshow/dnsmasq.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

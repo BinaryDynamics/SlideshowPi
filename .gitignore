@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.dev-data/
+.dev-data-listener-test/
+.dev-usb/
+dist/
+.admin-credentials/
+.private-artifacts/
+output/
+.codex-remote-attachments/
+slideshowpi.conf
+setup.json
+bootstrap-admin.json
+*.original
+*.pyc

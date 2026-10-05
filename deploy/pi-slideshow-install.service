@@ -1,0 +1,17 @@
+[Unit]
+Description=Pi Slideshow first-boot installation
+After=network-online.target cloud-final.service
+Wants=network-online.target
+ConditionPathExists=!/var/lib/pi-slideshow/installation-complete
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/pi-slideshow/deploy/first_boot.py install
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=infinity
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
