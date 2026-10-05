@@ -8,6 +8,7 @@ async function api(path, data) {
     method: 'POST', headers: {'Content-Type': 'application/json', 'X-Slideshow-Token': token}, body: JSON.stringify(data)
   });
   const result = await response.json();
+  if (response.status === 401) { location.reload(); throw new Error('Sign in to manage photos.'); }
   if (!response.ok) throw new Error(result.error || 'Request failed.');
   return result;
 }
@@ -111,3 +112,5 @@ $('page-next').onclick = guarded(async () => { page++; await loadGallery(); });
 let searchTimer;
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(guarded(async () => { search = $('search').value; page = 0; await loadGallery(); }), 300); };
 poll(); setInterval(poll, 2500);
+
+if ($('photo-logout')) $('photo-logout').onclick = guarded(async () => { await api('photo-access/logout', {}); location.reload(); });

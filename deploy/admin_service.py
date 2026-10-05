@@ -127,10 +127,30 @@ def current_addresses():
             and not ipaddress.ip_address(a['local']).is_loopback]
 
 
+def configure_photo_access(config, enabled, password=''):
+    if type(enabled) is not bool or not isinstance(password, str):
+        raise ValueError('Choose valid photo access settings.')
+    path = config / 'photo-auth.json'
+    auth = json.loads(path.read_text()) if path.exists() else {}
+    if password:
+        config_password(password, admin=True)
+        salt = secrets.token_hex(16)
+        auth.update(salt=salt, digest=hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), 180000).hex())
+    if enabled and not auth.get('digest'):
+        raise ValueError('Set a photo management password before enabling protection.')
+    auth.update(enabled=enabled, version=secrets.token_hex(16))
+    atomic(path, json.dumps(auth))
+
+
 def initialize(config=CONFIG, setup=None):
     config = Path(config)
     config.mkdir(parents=True, exist_ok=True)
     # Validate before modifying credentials or network configuration.
+    if setup and setup.get('photo_access_custom'):
+        photo = setup['photo_access']
+        configure_photo_access(config, photo['enabled'], photo['password'])
+    elif not (config / 'photo-auth.json').exists():
+        configure_photo_access(config, False)
     previous = json.loads((config / 'network.json').read_text()) if (config / 'network.json').exists() else {}
     ap_network = hotspot_network(setup.get('hotspot_network') if setup else previous.get('hotspot_network'))
     if setup and setup.get('admin_password') or not (config / 'admin-auth.json').exists():
@@ -191,7 +211,9 @@ class Manager:
         with self.lock:
             ap = ap_values(self.config / 'hostapd.conf')
             home = self.settings.get('home')
-            return {'available': True, 'mode': self.settings['mode'],
+            photo = json.loads((self.config / 'photo-auth.json').read_text())
+            return {'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
+                    'available': True, 'mode': self.settings['mode'],
                     'addresses': list(self.status_addresses), 'hostname': socket.gethostname(),
                     'hotspot_ssid': ap.get('ssid', ''), 'country': ap.get('country_code', 'GB'),
                     'auth_version': json.loads((self.config / 'admin-auth.json').read_text()).get('version'),
@@ -201,10 +223,12 @@ class Manager:
                     'home_hidden': home['hidden'] if home else False,
                     'busy': self.busy, 'message': self.message}
 
-    def authenticate(self, password):
+    def authenticate(self, password, photo=False):
         if not isinstance(password, str) or len(password) > 128:
             return False
-        auth = json.loads((self.config / 'admin-auth.json').read_text())
+        auth = json.loads((self.config / ('photo-auth.json' if photo else 'admin-auth.json')).read_text())
+        if photo and (not auth.get('enabled') or not auth.get('digest')):
+            return False
         digest = hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(auth['salt']), 180000).hex()
         return hmac.compare_digest(digest, auth['digest'])
 
@@ -214,6 +238,8 @@ class Manager:
         action = payload.get('action')
         if action == 'status':
             return self.status()
+        if action == 'photo-authenticate':
+            return {'authenticated': self.authenticate(payload.get('password'), photo=True)}
         if action == 'authenticate':
             return {'authenticated': self.authenticate(payload.get('password'))}
         if action == 'diagnostics':
@@ -232,12 +258,24 @@ class Manager:
                 if type(seconds) in (float, int) and 0 <= seconds <= 3600:
                     self.display['frame_seconds'] = round(seconds, 3)
             return {'ok': True}
-        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save'):
+        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save'):
             raise ValueError('Unknown administration action.')
         values = {}
         with self.lock:
             if self.busy:
                 raise ValueError('A device operation is already in progress. Please wait.')
+            if action == 'photo-access-save':
+                enabled = payload.get('enabled')
+                if type(enabled) is not bool:
+                    raise ValueError('Choose whether to require a photo management password.')
+                password = payload.get('password', '')
+                if not isinstance(password, str):
+                    raise ValueError('Photo management password must be text.')
+                if password:
+                    config_password(password, admin=True)
+                elif enabled and not json.loads((self.config / 'photo-auth.json').read_text()).get('digest'):
+                    raise ValueError('Set a photo management password before enabling protection.')
+                values = dict(enabled=enabled, password=password)
             if action == 'admin-password':
                 if not self.authenticate(payload.get('current_password')):
                     raise ValueError('Current admin password is incorrect.')
@@ -306,6 +344,8 @@ class Manager:
     def execute(self, action, values):
         if action == 'reboot':
             self.run('systemctl', 'reboot')
+        elif action == 'photo-access-save':
+            configure_photo_access(self.config, values['enabled'], values['password'])
         elif action == 'admin-password':
             salt = secrets.token_hex(16)
             digest = hashlib.pbkdf2_hmac('sha256', values['password'].encode(), bytes.fromhex(salt), 180000).hex()

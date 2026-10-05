@@ -71,6 +71,20 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
             if not secrets.compare_digest(request.headers.get('X-Slideshow-Token', ''), token):
                 return jsonify(error='Reload this page before making changes.'), 403
+        admin_signed_in = time.time() - session.get('admin_since', 0) <= 3600 and session.get('auth_version') == network.get('auth_version')
+        local_player = (request.environ.get('slideshow.local_playback') is True and request.method == 'GET'
+                        and (request.path == '/api/state' or request.path.startswith('/api/frame/')))
+        protected_api = request.path.startswith('/api/') and not request.path.startswith(('/api/admin/', '/api/photo-access/'))
+        if request.path == '/' or protected_api:
+            if not network.get('available', True) and not local_player:
+                return jsonify(error='Photo access is temporarily unavailable. Please try again.'), 503
+            if network.get('photo_access_enabled') and not admin_signed_in and not local_player:
+                valid_photo_session = (time.time() - session.get('photo_since', 0) <= 3600
+                                       and session.get('photo_auth_version') == network.get('photo_auth_version'))
+                if not valid_photo_session:
+                    if request.path == '/':
+                        return render_template('photo_login.html', token=token)
+                    return jsonify(error='Sign in to manage or view photos.'), 401
         if request.path.startswith('/api/admin/') and request.path != '/api/admin/login':
             if time.time() - session.get('admin_since', 0) > 3600 or session.get('auth_version') != network.get('auth_version'):
                 return jsonify(error='Sign in to administer this device.'), 401
@@ -104,17 +118,13 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
 
     @app.get('/')
     def index():
-        return render_template('index.html', token=token)
+        return render_template('index.html', token=token, photo_protected=admin.status().get('photo_access_enabled', False))
 
     @app.get('/admin')
     def admin_page():
         return render_template('admin.html', token=token)
 
-    @app.post('/api/admin/login')
-    def admin_login():
-        payload = request.get_json()
-        if not isinstance(payload, dict) or not isinstance(payload.get('password'), str):
-            raise ValueError('Enter your admin password.')
+    def allow_login_attempt():
         now = time.monotonic()
         # Bound memory and rate-limit both a client and aggregate password attempts.
         with auth_lock:
@@ -124,9 +134,39 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
                     del login_attempts[key]
             client_key = request.remote_addr
             if len(login_attempts.get(client_key, [])) >= 5 or len(login_attempts.get('*', [])) >= 15:
-                return jsonify(error='Too many attempts. Wait one minute and try again.'), 429
+                return False
             login_attempts.setdefault(client_key, []).append(now)
             login_attempts.setdefault('*', []).append(now)
+        return True
+
+    @app.post('/api/photo-access/login')
+    def photo_login():
+        payload = request.get_json()
+        if not isinstance(payload, dict) or not isinstance(payload.get('password'), str):
+            raise ValueError('Enter the photo management password.')
+        if not allow_login_attempt():
+            return jsonify(error='Too many attempts. Wait one minute and try again.'), 429
+        if not admin.call('photo-authenticate', password=payload['password']).get('authenticated'):
+            return jsonify(error='Incorrect photo management password.'), 401
+        session['photo_since'] = time.time()
+        session['photo_auth_version'] = admin.status().get('photo_auth_version')
+        return jsonify(ok=True)
+
+    @app.post('/api/photo-access/logout')
+    def photo_logout():
+        session.pop('photo_since', None)
+        session.pop('photo_auth_version', None)
+        # An admin session also grants photo access: sign out completely.
+        session.clear()
+        return jsonify(ok=True)
+
+    @app.post('/api/admin/login')
+    def admin_login():
+        payload = request.get_json()
+        if not isinstance(payload, dict) or not isinstance(payload.get('password'), str):
+            raise ValueError('Enter your admin password.')
+        if not allow_login_attempt():
+            return jsonify(error='Too many attempts. Wait one minute and try again.'), 429
         if not admin.call('authenticate', password=payload['password']).get('authenticated'):
             return jsonify(error='Incorrect admin password.'), 401
         session.clear()
@@ -146,7 +186,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.post('/api/admin/action')
     def admin_action():
         payload = request.get_json()
-        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save'):
+        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save'):
             raise ValueError('Unknown admin action.')
         result = admin.call(**payload)
         if payload['action'] == 'admin-password':

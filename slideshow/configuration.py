@@ -81,9 +81,19 @@ def load_config(path=None, default_country='GB'):
                     password=password(saved.get('password'), psk=True) if security == 'wpa' else '')
     if mode == 'client' and not home:
         raise ValueError('Client mode requires home_wifi credentials.')
+    photo = raw.get('photo_access', {})
+    enabled = photo.get('enabled', False)
+    if type(enabled) is not bool:
+        raise ValueError('photo_access.enabled must be true or false.')
+    photo_password = photo.get('password', '')
+    if not isinstance(photo_password, str):
+        raise ValueError('photo_access.password must be text.')
+    if enabled or photo_password:
+        photo_password = password(photo_password or secrets.token_urlsafe(18), admin=True)
     return dict(country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
                 admin_password=password(raw.get('admin', {}).get('password') or secrets.token_urlsafe(18), admin=True),
-                network_mode=mode, home=home, playback=playback_settings(raw.get('slideshow', {})),
+                network_mode=mode, home=home, photo_access=dict(enabled=enabled, password=photo_password),
+                photo_access_custom='photo_access' in raw, playback=playback_settings(raw.get('slideshow', {})),
                 playback_custom='slideshow' in raw, hotspot_network=hotspot_network(
                     {k: hotspot[k] for k in HOTSPOT_DEFAULTS if k in hotspot}))
 
@@ -106,7 +116,7 @@ def config_text(setup):
     """Write resolved defaults, so generated passwords remain stable between boots."""
     sections = dict(device=dict(country=setup['country']),
                     hotspot=dict(ssid=setup['ssid'], password=setup['password'], **setup['hotspot_network']),
-                    admin=dict(password=setup['admin_password']), network=dict(mode=setup['network_mode']),
+                    admin=dict(password=setup['admin_password']), photo_access=setup.get('photo_access', dict(enabled=False, password='')), network=dict(mode=setup['network_mode']),
                     home_wifi=setup.get('home') or dict(ssid='', password='', security='wpa', hidden=False),
                     slideshow=setup.get('playback', PLAYBACK_DEFAULTS))
     return '# Private SlideshowPi settings. Keep this file outside Git.\n\n' + '\n\n'.join(

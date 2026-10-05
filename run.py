@@ -11,7 +11,11 @@ if __name__ == '__main__':
     app = create_app()
     # Both listeners share one library/clock. Browser thumbnail requests cannot
     # consume the worker threads used by the local HDMI player.
-    threading.Thread(target=serve, kwargs={'app': app, 'host': '127.0.0.1',
+    def local_playback(environ, start_response):
+        # Set by this loopback-only listener, never by a client header.
+        environ['slideshow.local_playback'] = True
+        return app(environ, start_response)
+    threading.Thread(target=serve, kwargs={'app': local_playback, 'host': '127.0.0.1',
                      'port': 8081, 'threads': 2}, daemon=True,
                      name='local-playback-http').start()
     serve(app, host=args.host, port=args.port, threads=2,

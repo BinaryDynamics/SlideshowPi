@@ -51,6 +51,12 @@
       <label class="check"><input id="recursive" type="checkbox">Include subfolders</label>
       <button class="primary">Save slideshow settings</button>
     </form><form id="admin-folders-form"><h2>Photo folders</h2><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
+    <section class="card"><h2>Photo management access</h2><form id="photo-access-form">
+      <label class="check"><input id="photo-access-enabled" type="checkbox">Require a password to view and manage photos</label>
+      <label for="photo-access-password">Photo management password</label><input id="photo-access-password" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Leave blank to keep the saved photo password">
+      <p class="hint">Optional; disabled by default. Use 12-128 printable characters. This protects uploads, controls and browser images. Admin users retain access, and the TV continues playing. Changing the password signs photo users out.</p>
+      <button class="primary">Save photo access settings</button>
+    </form></section>
     <section class="card"><h2>Change admin password</h2><form id="password-form">
       <label for="current-admin-password">Current admin password</label><input id="current-admin-password" type="password" required autocomplete="current-password" maxlength="128">
       <label for="new-admin-password">New admin password</label><input id="new-admin-password" type="password" required autocomplete="new-password" minlength="12" maxlength="128">

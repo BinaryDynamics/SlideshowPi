@@ -7,11 +7,14 @@ import pytest
 
 from slideshow.web import create_app
 from slideshow.core import Library
+from test_admin import FakeAdmin
 
 
 @pytest.fixture
 def appliance(tmp_path):
-    app = create_app(tmp_path / 'data', tmp_path / 'usb', start_worker=False)
+    broker = FakeAdmin()
+    broker.status = lambda: dict(available=True, mode='hotspot', addresses=[dict(interface='wlan0', address='192.168.50.1')])
+    app = create_app(tmp_path / 'data', tmp_path / 'usb', start_worker=False, admin=broker)
     app.config['TESTING'] = True
     client = app.test_client()
     token = re.search(rb'name="slideshow-token" content="([^"]+)"', client.get('/').data)[1].decode()

@@ -13,4 +13,4 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
       - run: bash -n deploy/install.sh deploy/display-start.sh deploy/display-client.sh deploy/hotspot-start.sh
-      - run: node --check static/app.js && node --check static/admin.js
+      - run: node --check static/app.js && node --check static/admin.js && node --check static/photo_login.js

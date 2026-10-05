@@ -9,7 +9,7 @@
 <body>
 <header><div><span class="eyebrow">YOUR PHOTOS. ON THE BIG SCREEN.</span><h1>SlideshowPi</h1></div><span id="connection" class="badge">Connecting…</span></header>
 <main>
-  <p class="hint"><a href="/admin">Device administration</a></p>
+  <p class="hint"><a href="/admin">Device administration</a>{% if photo_protected %} · <button id="photo-logout">Sign out of photos</button>{% endif %}</p>
   <p id="notice" role="status" aria-live="polite"></p>
   <section class="card live">
     <div class="preview"><img id="current-preview" alt="Current TV image" hidden><p id="empty">Upload photos and select a folder to begin.</p></div>

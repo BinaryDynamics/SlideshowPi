@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slideshow-token" content="{{ token }}">
+  <title>Photo sign-in · SlideshowPi</title>
+  <link rel="stylesheet" href="/static/style.css"><script defer src="/static/photo_login.js"></script>
+</head>
+<body>
+<header><div><span class="eyebrow">SLIDESHOWPI</span><h1>Photo management</h1></div></header>
+<main>
+  <section class="card"><h2>Sign in to view and manage photos</h2>
+    <p class="hint">Enter the photo management password shared by the device owner. The slideshow continues on the TV.</p>
+    <form id="photo-login-form"><label for="photo-password">Photo management password</label>
+      <input id="photo-password" type="password" autocomplete="current-password" required maxlength="128">
+      <button class="primary">Sign in</button>
+    </form><p id="notice" role="status" aria-live="polite"></p>
+    <p><a href="/admin">Device administration</a></p>
+  </section>
+</main>
+</body>
+</html>

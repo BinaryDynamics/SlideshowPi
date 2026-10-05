@@ -10,6 +10,7 @@ Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It start
 - Fit the whole photo or fill the screen by cropping; automatic screen-size detection.
 - Full HD rendering, Lanczos resizing, high-quality JPEG output and smooth scaling.
 - Small network mode, Wi-Fi name and IP overlay in the top-left corner of the TV.
+- Optional password protection for photo management and browser image access; TV playback continues.
 - Password-protected `/admin`: restart, change hotspot details, join existing Wi-Fi, or return to hotspot mode.
 - Diagnostics: CPU/load, memory/swap, temperature, uptime, storage, services, power flags, HDMI player resolution and frame-loading time.
 - Automatic hotspot recovery if joining an existing network fails, or if its Wi-Fi address is lost for 90 seconds.
@@ -19,24 +20,28 @@ Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It start
 
 Examples from the actual web interface, using original sample illustrations and simulated diagnostics. No personal photos or real credentials are shown.
 
-**Live slideshow controls** — preview the current photo, play/pause, move between photos and rotate in either direction.
+**Live slideshow controls** â€” preview the current photo, play/pause, move between photos and rotate in either direction.
 
 ![SlideshowPi live slideshow controls](docs/screenshots/photo-overview.jpg)
 
-**Photo library** — select a specific photo and rotate each thumbnail clockwise or anticlockwise.
+**Photo library** â€” select a specific photo and rotate each thumbnail clockwise or anticlockwise.
 
 ![SlideshowPi photo library and rotation buttons](docs/screenshots/photo-library.jpg)
 
 <details>
 <summary>Administration and system diagnostics</summary>
 
-**Administration** — hotspot name and IP/DHCP range, existing Wi-Fi, wireless country, playback options, folder selection and admin password changes.
+**Administration** â€” hotspot name and IP/DHCP range, existing Wi-Fi, wireless country, playback options, folder selection and admin password changes.
 
 ![SlideshowPi administration settings](docs/screenshots/admin-settings.jpg)
 
-**Diagnostics** — CPU, memory, temperature, screen resolution, storage and service status. These readings are examples, not performance measurements.
+**Diagnostics** â€” CPU, memory, temperature, screen resolution, storage and service status. These readings are examples, not performance measurements.
 
 ![SlideshowPi example system diagnostics](docs/screenshots/system-diagnostics.jpg)
+
+**Optional photo sign-in** â€” protect family photos and controls with a separate password.
+
+![SlideshowPi optional photo management sign-in](docs/screenshots/photo-sign-in.jpg)
 
 </details>
 
@@ -52,7 +57,7 @@ This workflow modifies an **already-flashed** card. It never formats the card. U
 
 1. In Raspberry Pi Imager, select Zero W and flash compatible **Lite 32-bit**. Set a username/password, enable SSH, set your wireless country and an existing Wi-Fi network with internet access. Use `slideshowpi` as the hostname if desired. These OS/SSH settings are separate from the application's admin password.
 2. Download/extract the project (or `SlideshowPi.zip`). The extracted folder must contain this README, `player.py`, `slideshow`, `deploy` and `tools`.
-3. No application configuration is required. The helper creates complete defaults and unique Wi-Fi/admin passwords, saving a private **`slideshowpi.conf`** beside the application and on bootfs. For custom settings, optionally copy `slideshowpi.conf.example` to `slideshowpi.conf` and edit any values before preparation. Blank passwords are generated automatically. The wireless country is read from Imager’s boot command, falling back to `GB`; select your actual country in Imager or set it explicitly.
+3. No application configuration is required. The helper creates complete defaults and unique Wi-Fi/admin passwords, saving a private **`slideshowpi.conf`** beside the application and on bootfs. For custom settings, optionally copy `slideshowpi.conf.example` to `slideshowpi.conf` and edit any values before preparation. Blank passwords are generated automatically. The wireless country is read from Imagerâ€™s boot command, falling back to `GB`; select your actual country in Imager or set it explicitly.
 4. Install Python **3.11 or newer** on Windows, then run these commands in the extracted project folder:
 
    ```powershell
@@ -80,6 +85,8 @@ See [slideshowpi.conf.example](slideshowpi.conf.example) for the complete format
 | `hotspot.prefix_length` | Subnet prefix, 8-30; default `24` (`255.255.255.0`) |
 | `hotspot.dhcp_start` | First address offered to phones; default `192.168.50.20` |
 | `hotspot.dhcp_end` | Last address offered to phones; default `192.168.50.200` |
+| `photo_access.enabled` | Default `false`; require a password to view and manage photos |
+| `photo_access.password` | Custom 12-128 printable characters; blank generates a unique password when enabled during card preparation |
 | `admin.password` | Blank/omitted generates a separate unique password; custom values: 12-128 printable ASCII characters |
 | `network.mode` | Default `hotspot`; `client` requires actual existing Wi-Fi credentials |
 | `home_wifi.ssid` | Saved existing network, optional in hotspot mode |
@@ -98,6 +105,7 @@ The initial photo folder is SD storage at `/var/lib/pi-slideshow/photos`, playba
 Open `http://<current-IP>/admin`. In hotspot mode the IP defaults to `192.168.50.1` or uses your configured `hotspot.ip_address`; in client mode it is assigned by the router and shown on the TV. A small overlay in the upper-left corner shows the network mode and Wi-Fi name above the current IP address, updating even while playback is paused. The web server listens in both modes without restarting when the address changes. `slideshowpi.local` may also work if your OS/network supplies mDNS; use the numeric IP if it does not.
 
 - **Device settings:** change the wireless country; hotspot clients may briefly disconnect. OS login, SSH and hostname remain Raspberry Pi Imager settings.
+- **Photo management access:** optional, off by default. Enable it under `/admin` and set a separate 12-128 character password. Blank retains an existing photo password; enabling for the first time requires a password. Photo sessions last one hour; changing the password invalidates them. This protects thumbnails, image downloads, uploads and slideshow controls. Signed-in admins retain access, and HDMI playback continues through its separate loopback-only connection. Disabling protection allows anyone on the hotspot/LAN to view and manage photos again. If the admin service is unavailable, browser photo access is temporarily denied.
 - **Admin password:** supply the current password and a new 12-128 character password. Sign in again after saving; existing admin sessions are invalidated. Keep your private recovery copy up to date.
 - **Slideshow settings:** change speed, fit, shuffle, subfolder scanning and photo-folder selection. Upload and rotation controls are available on the photo page.
 - **Restart:** confirms the action, responds to the browser, then restarts the Pi.

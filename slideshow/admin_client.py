@@ -45,7 +45,9 @@ class AdminClient:
                 try:
                     self.cached = self.call('status')
                 except AdminUnavailable:
-                    self.cached = {'available': False, 'addresses': [], 'mode': 'unknown',
+                    self.cached = {**(self.cached or {}), 'available': False,
                                    'hostname': socket.gethostname(), 'busy': False}
+                    self.cached.setdefault('addresses', [])
+                    self.cached.setdefault('mode', 'unknown')
                 self.updated = time.monotonic()
             return dict(self.cached)
