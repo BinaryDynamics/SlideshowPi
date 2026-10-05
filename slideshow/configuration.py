@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import tomllib
 import ipaddress
+import secrets
+import json
 
 HOTSPOT_DEFAULTS = dict(ip_address='192.168.50.1', prefix_length=24,
                         dhcp_start='192.168.50.20', dhcp_end='192.168.50.200')
@@ -57,10 +59,12 @@ def password(value, admin=False, psk=False):
     return value
 
 
-def load_config(path):
-    with Path(path).open('rb') as source:
-        raw = tomllib.load(source)
-    country = raw.get('device', {}).get('country')
+def load_config(path=None, default_country='GB'):
+    raw = {}
+    if path is not None:
+        with Path(path).open('rb') as source:
+            raw = tomllib.load(source)
+    country = raw.get('device', {}).get('country') or default_country
     if not isinstance(country, str) or not re.fullmatch('[A-Z]{2}', country):
         raise ValueError('Set device.country to your uppercase two-letter wireless country code.')
     hotspot = raw.get('hotspot', {})
@@ -77,7 +81,34 @@ def load_config(path):
                     password=password(saved.get('password'), psk=True) if security == 'wpa' else '')
     if mode == 'client' and not home:
         raise ValueError('Client mode requires home_wifi credentials.')
-    return dict(country=country, ssid=ssid(hotspot.get('ssid')), password=password(hotspot.get('password')),
-                admin_password=password(raw.get('admin', {}).get('password'), admin=True),
-                network_mode=mode, home=home, hotspot_network=hotspot_network(
+    return dict(country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
+                admin_password=password(raw.get('admin', {}).get('password') or secrets.token_urlsafe(18), admin=True),
+                network_mode=mode, home=home, playback=playback_settings(raw.get('slideshow', {})),
+                playback_custom='slideshow' in raw, hotspot_network=hotspot_network(
                     {k: hotspot[k] for k in HOTSPOT_DEFAULTS if k in hotspot}))
+
+
+PLAYBACK_DEFAULTS = dict(seconds=10, shuffle=False, recursive=True, fit='contain')
+
+
+def playback_settings(values):
+    if not isinstance(values, dict):
+        raise ValueError('Slideshow settings must be an object.')
+    settings = {**PLAYBACK_DEFAULTS, **values}
+    if type(settings['seconds']) not in (int, float) or not 1 <= settings['seconds'] <= 3600:
+        raise ValueError('Slide duration must be from 1 to 3600 seconds.')
+    if any(type(settings[k]) is not bool for k in ('shuffle', 'recursive')) or settings['fit'] not in ('contain', 'cover'):
+        raise ValueError('Choose valid slideshow fit, shuffle and recursive settings.')
+    return {k: settings[k] for k in PLAYBACK_DEFAULTS}
+
+
+def config_text(setup):
+    """Write resolved defaults, so generated passwords remain stable between boots."""
+    sections = dict(device=dict(country=setup['country']),
+                    hotspot=dict(ssid=setup['ssid'], password=setup['password'], **setup['hotspot_network']),
+                    admin=dict(password=setup['admin_password']), network=dict(mode=setup['network_mode']),
+                    home_wifi=setup.get('home') or dict(ssid='', password='', security='wpa', hidden=False),
+                    slideshow=setup.get('playback', PLAYBACK_DEFAULTS))
+    return '# Private SlideshowPi settings. Keep this file outside Git.\n\n' + '\n\n'.join(
+        '[' + section + ']\n' + '\n'.join(key + ' = ' + json.dumps(value, ensure_ascii=False) for key, value in values.items())
+        for section, values in sections.items()) + '\n'

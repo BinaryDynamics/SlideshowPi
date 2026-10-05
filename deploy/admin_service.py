@@ -20,7 +20,7 @@ import uuid
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from slideshow.configuration import hotspot_network, dnsmasq_text
+from slideshow.configuration import hotspot_network, dnsmasq_text, password as config_password, playback_settings
 
 CONFIG = Path('/etc/pi-slideshow')
 AP_UNITS = ['pi-slideshow-ap', 'pi-slideshow-dns', 'pi-slideshow-hotspot']
@@ -137,7 +137,7 @@ def initialize(config=CONFIG, setup=None):
         password = setup['admin_password'] if setup and setup.get('admin_password') else secrets.token_urlsafe(12)
         salt = secrets.token_hex(16)
         digest = hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), 180000).hex()
-        atomic(config / 'admin-auth.json', json.dumps(dict(salt=salt, digest=digest)))
+        atomic(config / 'admin-auth.json', json.dumps(dict(salt=salt, digest=digest, version=secrets.token_hex(16))))
         atomic(config / 'admin-password.txt', password + '\n')
     if not (config / 'network.json').exists():
         atomic(config / 'network.json', json.dumps({'mode': 'hotspot', 'home': None,
@@ -153,6 +153,16 @@ def initialize(config=CONFIG, setup=None):
             atomic(ap_path, text)
     atomic(config / 'network.json', json.dumps(network))
     atomic(config / 'dnsmasq.conf', dnsmasq_text(ap_network))
+    if setup and setup.get('playback_custom'):
+        data = Path('/var/lib/pi-slideshow') if config == CONFIG else config / 'data'
+        target = data / 'settings.json'
+        settings = json.loads(target.read_text()) if target.exists() else {}
+        settings.update(playback_settings(setup.get('playback', {})))
+        atomic(target, json.dumps(settings), mode=0o644)
+        if config == CONFIG:
+            import pwd
+            owner = pwd.getpwnam('slideshow')
+            os.chown(target, owner.pw_uid, owner.pw_gid)
     if (config / 'hostapd.conf').exists():
         ap = ap_values(config / 'hostapd.conf')
         atomic(config / 'credentials.txt', 'Wi-Fi: ' + ap.get('ssid', '') + '\nPassword: ' +
@@ -183,7 +193,8 @@ class Manager:
             home = self.settings.get('home')
             return {'available': True, 'mode': self.settings['mode'],
                     'addresses': list(self.status_addresses), 'hostname': socket.gethostname(),
-                    'hotspot_ssid': ap.get('ssid', ''),
+                    'hotspot_ssid': ap.get('ssid', ''), 'country': ap.get('country_code', 'GB'),
+                    'auth_version': json.loads((self.config / 'admin-auth.json').read_text()).get('version'),
                     'hotspot_network': hotspot_network(self.settings.get('hotspot_network')),
                     'home_ssid': home['ssid'] if home else '',
                     'home_security': home['security'] if home else 'wpa',
@@ -221,12 +232,21 @@ class Manager:
                 if type(seconds) in (float, int) and 0 <= seconds <= 3600:
                     self.display['frame_seconds'] = round(seconds, 3)
             return {'ok': True}
-        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect'):
+        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save'):
             raise ValueError('Unknown administration action.')
         values = {}
         with self.lock:
             if self.busy:
                 raise ValueError('A device operation is already in progress. Please wait.')
+            if action == 'admin-password':
+                if not self.authenticate(payload.get('current_password')):
+                    raise ValueError('Current admin password is incorrect.')
+                values['password'] = config_password(payload.get('password'), admin=True)
+            if action == 'device-save':
+                country = payload.get('country')
+                if not isinstance(country, str) or not re.fullmatch('[A-Z]{2}', country):
+                    raise ValueError('Choose a two-letter uppercase wireless country code.')
+                values['country'] = country
             if action == 'hotspot-save':
                 values['ssid'] = validate_ssid(payload.get('ssid'))
                 ap = ap_values(self.config / 'hostapd.conf')
@@ -252,6 +272,8 @@ class Manager:
         self.run('systemctl', 'stop', *AP_UNITS)
 
     def hotspot(self):
+        if shutil.which('iw'):
+            self.run('iw', 'reg', 'set', ap_values(self.config / 'hostapd.conf').get('country_code', 'GB'))
         atomic(self.config / 'dnsmasq.conf', dnsmasq_text(self.settings.get('hotspot_network')))
         self.run('nmcli', 'device', 'set', 'wlan0', 'autoconnect', 'no')
         self.run('nmcli', 'device', 'set', 'wlan0', 'managed', 'no')
@@ -262,6 +284,8 @@ class Manager:
         self.lost_since = None
 
     def connect(self):
+        if shutil.which('iw'):
+            self.run('iw', 'reg', 'set', ap_values(self.config / 'hostapd.conf').get('country_code', 'GB'))
         home = self.settings.get('home')
         if not home:
             raise ValueError('No home Wi-Fi is saved.')
@@ -282,6 +306,24 @@ class Manager:
     def execute(self, action, values):
         if action == 'reboot':
             self.run('systemctl', 'reboot')
+        elif action == 'admin-password':
+            salt = secrets.token_hex(16)
+            digest = hashlib.pbkdf2_hmac('sha256', values['password'].encode(), bytes.fromhex(salt), 180000).hex()
+            atomic(self.config / 'admin-auth.json', json.dumps(dict(salt=salt, digest=digest, version=secrets.token_hex(16))))
+            atomic(self.config / 'admin-password.txt', values['password'] + '\n')
+        elif action == 'device-save':
+            path = self.config / 'hostapd.conf'
+            original = path.read_text()
+            atomic(path, re.sub(r'^country_code=.*$', 'country_code=' + values['country'], original, flags=re.M))
+            try:
+                self.run('iw', 'reg', 'set', values['country'])
+                if self.settings['mode'] == 'hotspot':
+                    self.run('systemctl', 'restart', 'pi-slideshow-ap')
+                    self.run('systemctl', 'is-active', '--quiet', 'pi-slideshow-ap')
+            except Exception:
+                atomic(path, original)
+                self.run('iw', 'reg', 'set', ap_values(path).get('country_code', 'GB'))
+                raise
         elif action == 'hotspot':
             self.hotspot()
         elif action == 'connect':

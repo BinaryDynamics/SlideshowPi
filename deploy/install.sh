@@ -6,7 +6,7 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$source_dir"
 if [[ ! -f /etc/rpi-issue ]]; then echo 'This installer requires Raspberry Pi OS.'; exit 1; fi
 if [[ $(getconf LONG_BIT) != 32 ]]; then echo 'Use Raspberry Pi OS Lite (32-bit) for the original Zero W.'; exit 1; fi
-country=${COUNTRY:-ZA}
+country=${COUNTRY:-GB}
 ssid=${SSID:-SlideshowPi}
 if [[ ! $country =~ ^[A-Z]{2}$ ]]; then echo 'COUNTRY must be a two-letter uppercase code.'; exit 1; fi
 export SSID="$ssid"
@@ -15,7 +15,7 @@ echo 'Installing slideshow packages. This will dedicate wlan0 to the hotspot aft
 apt-get update
 apt-get -o DPkg::Lock::Timeout=300 install -y python3-flask python3-pil python3-waitress python3-pygame hostapd dnsmasq-base \
   xserver-xorg-core xserver-xorg-legacy xserver-xorg-video-fbdev xinit xauth x11-xserver-utils \
-  rfkill exfatprogs ntfs-3g util-linux network-manager
+  iw rfkill exfatprogs ntfs-3g util-linux network-manager
 if ! id slideshow >/dev/null 2>&1; then useradd --system --user-group --create-home --shell /usr/sbin/nologin slideshow; fi
 usermod -aG video,render,input slideshow
 install -d /opt/pi-slideshow /etc/pi-slideshow /media/slideshow

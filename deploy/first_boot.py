@@ -80,7 +80,7 @@ def install():
     (boot_root() / 'slideshowpi.conf').unlink(missing_ok=True)
     CONFIG.unlink(missing_ok=True)
     run('systemctl', 'disable', UNIT)
-    status('Installation complete. Rebooting into the slideshow hotspot. Open http://192.168.50.1/')
+    status('Installation complete. Rebooting. Open http://' + setup.get('hotspot_network', {}).get('ip_address', '192.168.50.1') + '/')
     run('systemctl', 'reboot', '--no-block')
 
 

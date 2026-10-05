@@ -25,8 +25,8 @@ def test_invalid_ranges_are_rejected(changes):
 def test_custom_config_drives_dns_dhcp_and_survives_restart(manager):
     m, commands, root = manager
     example = Path(__file__).resolve().parents[1] / 'slideshowpi.conf.example'
-    text = example.read_text().replace('CHANGE_ME_HOTSPOT_PASSWORD', 'test-hotspot-password').replace(
-        'CHANGE_ME_ADMIN_PASSWORD', 'test-admin-password')
+    text = example.read_text().replace('password = \'\' # Generate automatically, or enter 8-63 printable characters.', 'password = "test-hotspot-password"').replace(
+        'password = \'\' # Generate automatically, or enter 12-128 printable characters.', 'password = "test-admin-password"')
     for key, old in HOTSPOT_DEFAULTS.items():
         text = text.replace(f'{key} = ' + (f'"{old}"' if isinstance(old, str) else str(old)),
                             f'{key} = ' + (f'"{CUSTOM[key]}"' if isinstance(CUSTOM[key], str) else str(CUSTOM[key])))

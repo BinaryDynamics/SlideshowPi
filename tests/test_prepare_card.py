@@ -25,7 +25,7 @@ def test_cloud_init_hook_added_to_empty_config():
 
 def test_setup_validation():
     expected = {'ssid': 'test-slideshow', 'password': 'test-password-123', 'country': 'ZA'}
-    assert module.validate_setup(expected) == expected
+    assert {k: module.validate_setup(expected)[k] for k in expected} == expected
     for key, value in [('ssid', 'invalid\nssid'), ('password', 'short'), ('country', 'invalid')]:
         with pytest.raises(ValueError):
             module.validate_setup(dict(expected, **{key: value}))

@@ -1,7 +1,7 @@
 """Add a cloud-init slideshow installer to an already flashed bootfs partition.
 
-Does not format or access raw disks. Configuration is read from stdin rather
-than accepting a password as a process argument. Requires PyYAML on Windows.
+Does not format or access raw disks. Configuration uses optional TOML input or generated defaults;
+passwords are never accepted as process arguments. Requires PyYAML on Windows.
 """
 import argparse
 import hashlib
@@ -15,7 +15,7 @@ import sys
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from slideshow.configuration import load_config
+from slideshow.configuration import load_config, config_text
 
 PROJECT = Path(__file__).resolve().parents[1]
 HOOK = ['python3', '/boot/firmware/pi-slideshow/deploy/first_boot.py', 'stage']
@@ -34,7 +34,9 @@ def validate_setup(setup):
     for key in ('admin_password', 'network_mode', 'home', 'hotspot_network'):
         if key in setup:
             result[key] = setup[key]
-    return result
+    defaults = load_config(default_country=result['country'])
+    defaults.update(result)
+    return defaults
 
 
 def add_hook(content):
@@ -117,6 +119,10 @@ def prepare(card, setup):
         'Prepared on Windows. Insert into Pi and power on with configured home Wi-Fi available.\n'
         'The Pi installs packages, then reboots into the slideshow hotspot.\n'
         'Do not disconnect power during installation.\n')
+    resolved = config_text(setup)
+    (card / 'slideshowpi.conf').write_text(resolved, encoding='utf8', newline='\n')
+    if (card / 'slideshowpi.conf').read_text(encoding='utf8') != resolved:
+        raise RuntimeError('Private configuration readback failed.')
     print(f'Prepared and verified {card}. Hotspot: {setup["ssid"]}. Password was saved without being printed.')
 
 
@@ -126,10 +132,17 @@ if __name__ == '__main__':
     parser.add_argument('--config', help='Path to your private slideshowpi.conf text file.')
     args = parser.parse_args()
     try:
-        setup = load_config(args.config) if args.config else json.load(sys.stdin)
+        command = (Path(args.drive) / 'cmdline.txt').read_text()
+        match = re.search(r'cfg80211.ieee80211_regdom=([A-Z]{2})', command)
+        country = match[1] if match else 'GB'
+        configuration = Path(args.config) if args.config else PROJECT / 'slideshowpi.conf'
+        setup = load_config(configuration if configuration.exists() else None, default_country=country)
+        if args.config and not configuration.exists():
+            raise ValueError('The requested configuration file does not exist.')
         prepare(args.drive, setup)
-        if args.config:
-            shutil.copyfile(args.config, Path(args.drive) / 'slideshowpi.conf')
+        if not configuration.exists():
+            configuration.write_text(config_text(setup), encoding='utf8', newline='\n')
+        print('Resolved settings and generated passwords are on bootfs in slideshowpi.conf. Keep a private copy before first boot.')
     except Exception as error:
         print(f'Preparation failed: {error}', file=sys.stderr)
         raise SystemExit(1)

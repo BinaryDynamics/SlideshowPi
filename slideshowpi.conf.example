@@ -1,18 +1,19 @@
-# Copy to slideshowpi.conf, fill in your own details, and keep it out of Git.
+# Optional: copy to slideshowpi.conf to customise defaults; keep your private copy out of Git.
+# Blank hotspot/admin passwords generate unique random passwords during card preparation.
 # TOML format. Passwords containing backslashes are easier in single quotes.
 [device]
-country = "GB" # Your actual two-letter wireless country code.
+country = "" # Use the wireless country set in Raspberry Pi Imager; fallback GB.
 
 [hotspot]
 ssid = "SlideshowPi"
-password = "CHANGE_ME_HOTSPOT_PASSWORD" # 8-63 printable characters.
+password = '' # Generate automatically, or enter 8-63 printable characters.
 ip_address = "192.168.50.1" # Pi's address on the hotspot; private IPv4 only.
 prefix_length = 24 # /24 = 255.255.255.0. Supported range: 8-30.
 dhcp_start = "192.168.50.20" # Phones receive addresses in this inclusive range.
 dhcp_end = "192.168.50.200" # Same subnet; must exclude the Pi's address.
 
 [admin]
-password = "CHANGE_ME_ADMIN_PASSWORD" # 12-128 printable characters; use a different password.
+password = '' # Generate automatically, or enter 12-128 printable characters.
 
 [network]
 mode = "hotspot" # hotspot or client. Failed client connections recover to hotspot.
@@ -22,3 +23,9 @@ ssid = "" # Optional saved home network; required for client mode.
 password = ""
 security = "wpa" # wpa for WPA/WPA2 personal; open for a network without a password.
 hidden = false
+
+[slideshow]
+seconds = 10
+shuffle = false
+recursive = true
+fit = "contain" # contain: fit entire image; cover: fill screen and crop.

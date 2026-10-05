@@ -34,3 +34,5 @@ for correction and does not replace the working configuration.
 Report sensitive vulnerabilities through GitHub's private vulnerability
 reporting when enabled, rather than including passwords, photos or network
 details in a public issue.
+
+Default setup generates separate random hotspot and admin passwords; no shared default password is published. Card preparation saves the resolved private configuration for the owner. Changing the admin password requires the current password and invalidates existing admin sessions.

@@ -148,7 +148,7 @@ def test_text_config_and_admin_password_can_be_applied(manager):
     m, commands, root = manager
     config = root / 'slideshowpi.conf'
     config.write_text((ROOT / 'slideshowpi.conf.example').read_text().replace(
-        'CHANGE_ME_HOTSPOT_PASSWORD', 'test-hotspot-password').replace('CHANGE_ME_ADMIN_PASSWORD', 'test-admin-password'))
+        'password = \'\' # Generate automatically, or enter 8-63 printable characters.', 'password = "test-hotspot-password"').replace('password = \'\' # Generate automatically, or enter 12-128 printable characters.', 'password = "test-admin-password"'))
     setup = load_config(config)
     service.initialize(root, setup)
     assert m.authenticate('test-admin-password')
@@ -156,9 +156,10 @@ def test_text_config_and_admin_password_can_be_applied(manager):
     assert 'test-admin-password' not in (root / 'admin-auth.json').read_text()
 
 
-def test_example_config_requires_personal_passwords():
-    with pytest.raises(ValueError):
-        load_config(ROOT / 'slideshowpi.conf.example')
+def test_example_config_has_complete_generated_defaults():
+    setup = load_config(ROOT / 'slideshowpi.conf.example')
+    assert setup['ssid'] == 'SlideshowPi' and len(setup['admin_password']) >= 12
+    assert setup['password'] != setup['admin_password']
 
 
 def test_imager_hex_psk_is_accepted():

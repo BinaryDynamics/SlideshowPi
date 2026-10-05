@@ -72,7 +72,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
             if not secrets.compare_digest(request.headers.get('X-Slideshow-Token', ''), token):
                 return jsonify(error='Reload this page before making changes.'), 403
         if request.path.startswith('/api/admin/') and request.path != '/api/admin/login':
-            if time.time() - session.get('admin_since', 0) > 3600:
+            if time.time() - session.get('admin_since', 0) > 3600 or session.get('auth_version') != network.get('auth_version'):
                 return jsonify(error='Sign in to administer this device.'), 401
 
     @app.after_request
@@ -131,6 +131,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
             return jsonify(error='Incorrect admin password.'), 401
         session.clear()
         session['admin_since'] = time.time()
+        session['auth_version'] = admin.status().get('auth_version')
         return jsonify(ok=True)
 
     @app.post('/api/admin/logout')
@@ -145,9 +146,12 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.post('/api/admin/action')
     def admin_action():
         payload = request.get_json()
-        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect'):
+        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save'):
             raise ValueError('Unknown admin action.')
-        return jsonify(admin.call(**payload)), 202
+        result = admin.call(**payload)
+        if payload['action'] == 'admin-password':
+            session.clear()
+        return jsonify(result), 202
 
     @app.get('/api/state')
     def state():

@@ -25,7 +25,7 @@ def fixture(tmp_path):
     (source / 'cmdline.original').write_bytes(b'root=PARTUUID=test-02 rootwait\n')
     (boot / 'cmdline.txt').write_text('temporary boot hook')
     (boot / 'slideshowpi.conf').write_text((ROOT / 'slideshowpi.conf.example').read_text().replace(
-        'CHANGE_ME_HOTSPOT_PASSWORD', 'test-hotspot-password').replace('CHANGE_ME_ADMIN_PASSWORD', 'test-admin-password'))
+        'password = \'\' # Generate automatically, or enter 8-63 printable characters.', 'password = "test-hotspot-password"').replace('password = \'\' # Generate automatically, or enter 12-128 printable characters.', 'password = "test-admin-password"'))
     (app / 'player.py').write_text('old player')
     (data / 'photos/family.jpg').write_bytes(b'original image bytes')
     (data / 'settings.json').write_bytes(b'{"seconds":20}')

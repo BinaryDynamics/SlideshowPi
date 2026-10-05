@@ -11,7 +11,7 @@
 <main>
   <p id="notice" role="status" aria-live="polite"></p>
   <section id="login-card" class="card"><h2>Admin sign-in</h2>
-    <p class="hint">Use the admin password set in slideshowpi.conf. It is separate from the Wi-Fi password.</p>
+    <p class="hint">Use the admin password saved in your private slideshowpi.conf during card preparation. It is separate from the Wi-Fi password.</p>
     <form id="login-form"><label for="admin-password">Admin password</label><input type="password" id="admin-password" autocomplete="current-password" required maxlength="128">
     <button class="primary">Sign in</button></form>
   </section>
@@ -40,6 +40,23 @@
         <button class="primary">Save and connect</button>
       </form></section>
     </div>
+    <section class="card"><h2>Device settings</h2><form id="device-form">
+      <label for="device-country">Wireless country code</label><input id="device-country" required pattern="[A-Z]{2}" maxlength="2" placeholder="GB">
+      <p class="hint">Use your actual two-letter country code. Saving may disconnect hotspot clients briefly.</p><button class="primary">Save device settings</button>
+    </form></section>
+    <section class="card"><h2>Slideshow settings</h2><form id="playback-form">
+      <label for="seconds">Seconds per photo</label><input id="seconds" type="number" min="1" max="3600" step="1" required>
+      <label for="fit">Display mode</label><select id="fit"><option value="contain">Fit entire image</option><option value="cover">Fill screen and crop edges</option></select>
+      <label class="check"><input id="shuffle" type="checkbox">Shuffle photos</label>
+      <label class="check"><input id="recursive" type="checkbox">Include subfolders</label>
+      <button class="primary">Save slideshow settings</button>
+    </form><form id="admin-folders-form"><h2>Photo folders</h2><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
+    <section class="card"><h2>Change admin password</h2><form id="password-form">
+      <label for="current-admin-password">Current admin password</label><input id="current-admin-password" type="password" required autocomplete="current-password" maxlength="128">
+      <label for="new-admin-password">New admin password</label><input id="new-admin-password" type="password" required autocomplete="new-password" minlength="12" maxlength="128">
+      <label for="confirm-admin-password">Confirm new password</label><input id="confirm-admin-password" type="password" required autocomplete="new-password" minlength="12" maxlength="128">
+      <p class="hint">Use 12-128 printable characters. After saving, sign in with the new password.</p><button class="primary">Change admin password</button>
+    </form></section>
     <section class="card"><div class="library-heading"><h2>System diagnostics</h2><button id="refresh">Refresh now</button></div>
       <p class="hint">Updates every 5 seconds. CPU use is measured between samples.</p>
       <dl id="stats" class="stats-grid"></dl>

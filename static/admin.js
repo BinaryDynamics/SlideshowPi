@@ -32,9 +32,9 @@ async function poll() {
     $('operation').textContent = n.message || '';
     $('addresses').replaceChildren();
     for (const address of n.addresses || []) { const p = document.createElement('p'); p.textContent = address.interface + ': http://' + address.address; $('addresses').append(p); }
-    if (!initialized) { $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
+    if (!initialized) { $('device-country').value = n.country || 'GB'; const response = await fetch('/api/state'); const state = await response.json(); $('admin-folder-list').replaceChildren(); for (const path of state.folders) { const label = document.createElement('label'), input = document.createElement('input'); label.className = 'check'; input.type = 'checkbox'; input.value = path; input.checked = state.settings.folders.includes(path); label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '))); $('admin-folder-list').append(label); } for (const id of ['seconds', 'fit']) $(id).value = state.settings[id]; for (const id of ['shuffle', 'recursive']) $(id).checked = state.settings[id]; $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
     for (const id of ['switch-hotspot', 'reboot']) $(id).disabled = !!n.busy || pending;
-    for (const form of ['hotspot-form', 'home-form']) $(form).querySelector('button').disabled = !!n.busy || pending;
+    for (const form of ['hotspot-form', 'home-form', 'device-form', 'password-form']) $(form).querySelector('button').disabled = !!n.busy || pending;
     $('stats').replaceChildren();
     stat('CPU usage', s.cpu_percent == null ? 'Waiting for sample' : s.cpu_percent + '%');
     stat('Load average (1 / 5 / 15 min)', s.load_average ? s.load_average.map(v => v.toFixed(2)).join(' / ') : 'Unavailable');
@@ -80,3 +80,21 @@ $('refresh').onclick = guarded(poll);
 $('home-security').onchange = () => { $('home-password').disabled = $('home-security').value === 'open'; };
 poll().catch(() => signedIn(false));
 setInterval(() => { if (!$('admin-content').hidden) poll().catch(e => notice(e.message, true)); }, 5000);
+
+$('device-form').onsubmit = guarded(() => action({action: 'device-save', country: $('device-country').value.trim().toUpperCase()}, 'Save wireless country settings? Hotspot clients may disconnect.', 'Device settings are being saved.'));
+$('playback-form').onsubmit = guarded(async () => {
+  const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Slideshow-Token': token}, body: JSON.stringify({seconds: Number($('seconds').value), fit: $('fit').value, shuffle: $('shuffle').checked, recursive: $('recursive').checked})});
+  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save slideshow settings.'); notice('Slideshow settings saved.');
+});
+$('password-form').onsubmit = guarded(async () => {
+  if ($('new-admin-password').value !== $('confirm-admin-password').value) throw new Error('New passwords do not match.');
+  await api('action', {action: 'admin-password', current_password: $('current-admin-password').value, password: $('new-admin-password').value});
+  for (const id of ['current-admin-password', 'new-admin-password', 'confirm-admin-password']) $(id).value = '';
+  signedIn(false); initialized = false; notice('Password change accepted. Wait a few seconds, then sign in with the new password.');
+});
+
+$('admin-folders-form').onsubmit = guarded(async () => {
+  const folders = [...$('admin-folder-list').querySelectorAll('input:checked')].map(input => input.value);
+  const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Slideshow-Token': token}, body: JSON.stringify({folders})});
+  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save photo folders.'); notice('Photo folders saved.');
+});
