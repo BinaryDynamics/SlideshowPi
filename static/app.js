@@ -44,8 +44,9 @@ async function loadGallery() {
     const name = document.createElement('p'); name.textContent = photo.name;
     const buttons = document.createElement('div'); buttons.className = 'buttons';
     const show = document.createElement('button'); show.textContent = 'Show'; show.onclick = guarded(() => control('show', photo.id));
-    const rotate = document.createElement('button'); rotate.textContent = 'Rotate ↷'; rotate.onclick = guarded(async () => { await control('rotate', photo.id, 90); image.src = '/api/thumbnail/' + photo.id + '?v=' + Date.now(); });
-    buttons.append(show, rotate); caption.append(name, buttons); card.append(image, caption); $('gallery').append(card);
+    const rotateLeft = document.createElement('button'); rotateLeft.textContent = '↶ Left'; rotateLeft.setAttribute('aria-label', 'Rotate anticlockwise'); rotateLeft.onclick = guarded(async () => { await control('rotate', photo.id, -90); image.src = '/api/thumbnail/' + photo.id + '?v=' + Date.now(); });
+    const rotateRight = document.createElement('button'); rotateRight.textContent = 'Right ↷'; rotateRight.setAttribute('aria-label', 'Rotate clockwise'); rotateRight.onclick = guarded(async () => { await control('rotate', photo.id, 90); image.src = '/api/thumbnail/' + photo.id + '?v=' + Date.now(); });
+    buttons.append(show, rotateLeft, rotateRight); caption.append(name, buttons); card.append(image, caption); $('gallery').append(card);
   }
   if (!result.items.length) { const empty = document.createElement('p'); empty.textContent = 'No photos found in the selected folders.'; $('gallery').append(empty); }
   $('page-back').disabled = page === 0;
