@@ -5,7 +5,7 @@ import zipfile
 root = Path(__file__).resolve().parents[1]
 destination = root / 'dist' / 'SlideshowPi.zip'
 destination.parent.mkdir(exist_ok=True)
-included = ['slideshow', 'templates', 'static', 'deploy', 'tests', 'tools', '.github']
+included = ['slideshow', 'templates', 'static', 'deploy', 'tests', 'tools', '.github', 'docs/screenshots']
 files = [root / name for name in ['README.md', 'LICENSE', 'SECURITY.md', 'slideshowpi.conf.example',
                                  'run.py', 'player.py', 'requirements.txt', 'requirements-dev.txt', 'pytest.ini', '.gitignore', '.gitattributes']]
 for folder in included:

@@ -9,11 +9,36 @@ Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It start
 - Play, pause, previous/next, select a specific photo, rotate, shuffle, and set speed.
 - Fit the whole photo or fill the screen by cropping; automatic screen-size detection.
 - Full HD rendering, Lanczos resizing, high-quality JPEG output and smooth scaling.
-- Small current-IP label in the top-left corner of the TV.
+- Small network mode, Wi-Fi name and IP overlay in the top-left corner of the TV.
 - Password-protected `/admin`: restart, change hotspot details, join existing Wi-Fi, or return to hotspot mode.
 - Diagnostics: CPU/load, memory/swap, temperature, uptime, storage, services, power flags, HDMI player resolution and frame-loading time.
 - Automatic hotspot recovery if joining an existing network fails, or if its Wi-Fi address is lost for 90 seconds.
 - Configure application credentials through one private text file: `slideshowpi.conf`.
+
+## Screenshots
+
+Examples from the actual web interface, using original sample illustrations and simulated diagnostics. No personal photos or real credentials are shown.
+
+**Live slideshow controls** — preview the current photo, play/pause, move between photos and rotate in either direction.
+
+![SlideshowPi live slideshow controls](docs/screenshots/photo-overview.jpg)
+
+**Photo library** — select a specific photo and rotate each thumbnail clockwise or anticlockwise.
+
+![SlideshowPi photo library and rotation buttons](docs/screenshots/photo-library.jpg)
+
+<details>
+<summary>Administration and system diagnostics</summary>
+
+**Administration** — hotspot name and IP/DHCP range, existing Wi-Fi, wireless country, playback options, folder selection and admin password changes.
+
+![SlideshowPi administration settings](docs/screenshots/admin-settings.jpg)
+
+**Diagnostics** — CPU, memory, temperature, screen resolution, storage and service status. These readings are examples, not performance measurements.
+
+![SlideshowPi example system diagnostics](docs/screenshots/system-diagnostics.jpg)
+
+</details>
 
 ## Requirements
 
