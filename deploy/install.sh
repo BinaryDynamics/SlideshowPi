@@ -45,23 +45,9 @@ wpa_passphrase=$password
 wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 EOF
-  printf 'Wi-Fi: %s\nPassword: %s\nConfiguration: http://192.168.50.1\n' "$ssid" "$password" > /etc/pi-slideshow/credentials.txt
   umask 022
 fi
-cat > /etc/pi-slideshow/dnsmasq.conf <<'EOF'
-interface=wlan0
-bind-dynamic
-listen-address=192.168.50.1
-no-resolv
-no-hosts
-address=/#/192.168.50.1
-local=/#/
-dhcp-range=192.168.50.20,192.168.50.200,255.255.255.0,12h
-dhcp-option=3,192.168.50.1
-dhcp-option=6,192.168.50.1
-dhcp-authoritative
-dhcp-leasefile=/var/lib/misc/pi-slideshow.leases
-EOF
+# The admin initializer generates DNS/DHCP settings from the saved hotspot subnet.
 install -d /var/lib/misc
 install -d /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/90-pi-slideshow.conf <<'EOF'

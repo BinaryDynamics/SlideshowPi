@@ -6,6 +6,10 @@ country = "GB" # Your actual two-letter wireless country code.
 [hotspot]
 ssid = "SlideshowPi"
 password = "CHANGE_ME_HOTSPOT_PASSWORD" # 8-63 printable characters.
+ip_address = "192.168.50.1" # Pi's address on the hotspot; private IPv4 only.
+prefix_length = 24 # /24 = 255.255.255.0. Supported range: 8-30.
+dhcp_start = "192.168.50.20" # Phones receive addresses in this inclusive range.
+dhcp_end = "192.168.50.200" # Same subnet; must exclude the Pi's address.
 
 [admin]
 password = "CHANGE_ME_ADMIN_PASSWORD" # 12-128 printable characters; use a different password.

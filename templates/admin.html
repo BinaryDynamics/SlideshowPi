@@ -23,6 +23,11 @@
       <section class="card"><h2>Hotspot</h2><form id="hotspot-form">
         <label for="hotspot-ssid">Hotspot name</label><input id="hotspot-ssid" required maxlength="32" autocomplete="off">
         <label for="hotspot-password">New hotspot password</label><input type="password" id="hotspot-password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="Leave blank to keep the current password">
+        <label for="hotspot-ip">Hotspot IP address</label><input id="hotspot-ip" required placeholder="192.168.50.1" inputmode="decimal">
+        <label for="hotspot-prefix">Subnet prefix length</label><input id="hotspot-prefix" type="number" required min="8" max="30" step="1" placeholder="24">
+        <label for="hotspot-dhcp-start">DHCP range start</label><input id="hotspot-dhcp-start" required placeholder="192.168.50.20" inputmode="decimal">
+        <label for="hotspot-dhcp-end">DHCP range end</label><input id="hotspot-dhcp-end" required placeholder="192.168.50.200" inputmode="decimal">
+        <p class="hint">Use a private IPv4 subnet. /24 means 255.255.255.0. Both DHCP endpoints must be in this subnet; the range must exclude the Pi’s address. After changing the IP, reconnect and open the new address.</p>
         <p class="hint">Changing an active hotspot disconnects connected phones. A new name or password also requires a new printed Wi-Fi QR code.</p>
         <button class="primary">Save hotspot settings</button>
       </form><div class="buttons"><button id="switch-hotspot">Switch to hotspot mode</button></div></section>

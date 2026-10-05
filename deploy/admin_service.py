@@ -17,6 +17,10 @@ import subprocess
 import threading
 import time
 import uuid
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from slideshow.configuration import hotspot_network, dnsmasq_text
 
 CONFIG = Path('/etc/pi-slideshow')
 AP_UNITS = ['pi-slideshow-ap', 'pi-slideshow-dns', 'pi-slideshow-hotspot']
@@ -126,6 +130,9 @@ def current_addresses():
 def initialize(config=CONFIG, setup=None):
     config = Path(config)
     config.mkdir(parents=True, exist_ok=True)
+    # Validate before modifying credentials or network configuration.
+    previous = json.loads((config / 'network.json').read_text()) if (config / 'network.json').exists() else {}
+    ap_network = hotspot_network(setup.get('hotspot_network') if setup else previous.get('hotspot_network'))
     if setup and setup.get('admin_password') or not (config / 'admin-auth.json').exists():
         password = setup['admin_password'] if setup and setup.get('admin_password') else secrets.token_urlsafe(12)
         salt = secrets.token_hex(16)
@@ -135,17 +142,21 @@ def initialize(config=CONFIG, setup=None):
     if not (config / 'network.json').exists():
         atomic(config / 'network.json', json.dumps({'mode': 'hotspot', 'home': None,
                                                    'profile_uuid': str(uuid.uuid4())}))
+    network = json.loads((config / 'network.json').read_text())
+    network['hotspot_network'] = ap_network
     if setup:
-        network = json.loads((config / 'network.json').read_text())
         network.update(mode=setup.get('network_mode', 'hotspot'), home=setup.get('home'))
-        atomic(config / 'network.json', json.dumps(network))
         ap_path = config / 'hostapd.conf'
         if ap_path.exists():
             text = replace_ap(ap_path.read_text(), setup['ssid'], setup['password'])
             text = re.sub(r'^country_code=.*$', 'country_code=' + setup['country'], text, flags=re.M)
             atomic(ap_path, text)
-            atomic(config / 'credentials.txt', 'Wi-Fi: ' + setup['ssid'] + '\nPassword: ' +
-                   setup['password'] + '\nConfiguration: http://192.168.50.1\n')
+    atomic(config / 'network.json', json.dumps(network))
+    atomic(config / 'dnsmasq.conf', dnsmasq_text(ap_network))
+    if (config / 'hostapd.conf').exists():
+        ap = ap_values(config / 'hostapd.conf')
+        atomic(config / 'credentials.txt', 'Wi-Fi: ' + ap.get('ssid', '') + '\nPassword: ' +
+               ap.get('wpa_passphrase', '') + '\nConfiguration: http://' + ap_network['ip_address'] + '\n')
 
 
 class Manager:
@@ -173,6 +184,7 @@ class Manager:
             return {'available': True, 'mode': self.settings['mode'],
                     'addresses': list(self.status_addresses), 'hostname': socket.gethostname(),
                     'hotspot_ssid': ap.get('ssid', ''),
+                    'hotspot_network': hotspot_network(self.settings.get('hotspot_network')),
                     'home_ssid': home['ssid'] if home else '',
                     'home_security': home['security'] if home else 'wpa',
                     'home_hidden': home['hidden'] if home else False,
@@ -219,6 +231,7 @@ class Manager:
                 values['ssid'] = validate_ssid(payload.get('ssid'))
                 ap = ap_values(self.config / 'hostapd.conf')
                 values['password'] = validate_password(payload.get('password') or ap.get('wpa_passphrase'))
+                values['hotspot_network'] = hotspot_network(payload.get('hotspot_network', self.settings.get('hotspot_network')))
             if action == 'connect':
                 ssid = validate_ssid(payload.get('ssid'))
                 security = payload.get('security', 'wpa')
@@ -239,6 +252,7 @@ class Manager:
         self.run('systemctl', 'stop', *AP_UNITS)
 
     def hotspot(self):
+        atomic(self.config / 'dnsmasq.conf', dnsmasq_text(self.settings.get('hotspot_network')))
         self.run('nmcli', 'device', 'set', 'wlan0', 'autoconnect', 'no')
         self.run('nmcli', 'device', 'set', 'wlan0', 'managed', 'no')
         self.run('systemctl', 'restart', 'pi-slideshow-hotspot')
@@ -277,17 +291,26 @@ class Manager:
         elif action == 'hotspot-save':
             path = self.config / 'hostapd.conf'
             original = path.read_text()
+            old_network = hotspot_network(self.settings.get('hotspot_network'))
+            new_network = values['hotspot_network']
             atomic(path, replace_ap(original, values['ssid'], values['password']))
             try:
+                self.settings['hotspot_network'] = new_network
+                self.save()
+                atomic(self.config / 'dnsmasq.conf', dnsmasq_text(new_network))
                 if self.settings['mode'] == 'hotspot':
-                    self.run('systemctl', 'restart', 'pi-slideshow-ap')
+                    self.stop_ap()
+                    self.hotspot()
                     self.run('systemctl', 'is-active', '--quiet', 'pi-slideshow-ap')
+                    self.run('systemctl', 'is-active', '--quiet', 'pi-slideshow-dns')
             except Exception:
                 atomic(path, original)
-                self.run('systemctl', 'restart', 'pi-slideshow-ap')
+                self.settings['hotspot_network'] = old_network
+                self.save()
+                atomic(self.config / 'dnsmasq.conf', dnsmasq_text(old_network))
                 raise
             atomic(self.config / 'credentials.txt', 'Wi-Fi: ' + values['ssid'] + '\nPassword: ' +
-                   values['password'] + '\nConfiguration: http://192.168.50.1\n')
+                   values['password'] + '\nConfiguration: http://' + new_network['ip_address'] + '\n')
 
     def perform(self, action, values):
         try:
@@ -401,7 +424,7 @@ def main():
                         data += chunk
                     result = manager.request(json.loads(data.split(b'\n', 1)[0]))
                 except (ValueError, TypeError):
-                    result = {'error': 'Invalid request. Check the Wi-Fi name and password, and wait for any pending operation.'}
+                    result = {'error': 'Invalid request. Check the Wi-Fi details, hotspot subnet and DHCP range, and wait for any pending operation.'}
                 except Exception:
                     result = {'error': 'Administration request failed.'}
                 try:

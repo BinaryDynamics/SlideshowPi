@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 
 from .core import Library, EXTENSIONS
 from .admin_client import AdminClient, AdminUnavailable
+from .configuration import HOTSPOT_DEFAULTS
 
 Image.MAX_IMAGE_PIXELS = 24_000_000
 warnings.simplefilter('error', Image.DecompressionBombWarning)
@@ -57,12 +58,15 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         host = request.host.split(':', 1)[0].lower()
         network = admin.status()
         hostname = network.get('hostname', '')
-        allowed = {'192.168.50.1', '127.0.0.1', 'localhost', 'slideshow.local'}
+        hotspot_ip = network.get('hotspot_network', HOTSPOT_DEFAULTS)['ip_address']
+        allowed = {'127.0.0.1', 'localhost', 'slideshow.local'}
+        if network.get('mode') in ('hotspot', 'unknown'):
+            allowed.add(hotspot_ip)
         allowed.update(item['address'] for item in network.get('addresses', []))
         if hostname:
             allowed.update((hostname.lower(), hostname.lower() + '.local'))
         if host not in allowed:
-            address = next((a['address'] for a in network.get('addresses', [])), '192.168.50.1')
+            address = next((a['address'] for a in network.get('addresses', [])), hotspot_ip)
             return redirect('http://' + address + '/', code=302)
         if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
             if not secrets.compare_digest(request.headers.get('X-Slideshow-Token', ''), token):
@@ -303,7 +307,10 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     def captive(unknown):
         if unknown.startswith('api/'):
             return jsonify(error='Unknown API endpoint.'), 404
-        return redirect('http://192.168.50.1/', code=302)
+        network = admin.status()
+        address = next((a['address'] for a in network.get('addresses', [])),
+                       network.get('hotspot_network', HOTSPOT_DEFAULTS)['ip_address'])
+        return redirect('http://' + address + '/', code=302)
 
     if start_worker:
         def worker():

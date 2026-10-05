@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="slideshow-token"]').content;
 let initialized = false, pending = false, polling = false;
+let hotspotIP = '192.168.50.1';
 function notice(message, error = false) { $('notice').textContent = message; $('notice').classList.toggle('error', error); }
 async function api(path, data) {
   const response = await fetch('/api/admin/' + path, data === undefined ? {} : {
@@ -25,11 +26,13 @@ async function poll() {
   try {
     const {network: n, stats: s, display: d} = await api('status');
     signedIn(true);
+    const h = n.hotspot_network || {ip_address: '192.168.50.1', prefix_length: 24, dhcp_start: '192.168.50.20', dhcp_end: '192.168.50.200'};
+    hotspotIP = h.ip_address;
     $('network-summary').textContent = n.mode === 'hotspot' ? 'Hotspot: ' + n.hotspot_ssid : n.mode === 'client' ? 'Connected to Wi-Fi: ' + n.home_ssid : 'Network status unavailable';
     $('operation').textContent = n.message || '';
     $('addresses').replaceChildren();
     for (const address of n.addresses || []) { const p = document.createElement('p'); p.textContent = address.interface + ': http://' + address.address; $('addresses').append(p); }
-    if (!initialized) { $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
+    if (!initialized) { $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
     for (const id of ['switch-hotspot', 'reboot']) $(id).disabled = !!n.busy || pending;
     for (const form of ['hotspot-form', 'home-form']) $(form).querySelector('button').disabled = !!n.busy || pending;
     $('stats').replaceChildren();
@@ -69,9 +72,9 @@ async function action(payload, prompt, message) {
 }
 $('login-form').onsubmit = guarded(async () => { await api('login', {password: $('admin-password').value}); $('admin-password').value = ''; notice('Signed in.'); await poll(); });
 $('logout').onclick = guarded(async () => { await api('logout', {}); signedIn(false); initialized = false; notice('Signed out.'); });
-$('hotspot-form').onsubmit = guarded(() => action({action: 'hotspot-save', ssid: $('hotspot-ssid').value, password: $('hotspot-password').value}, 'Save hotspot settings? If the hotspot is active, your phone will disconnect.', 'Hotspot settings are being saved. Rejoin using the new details if disconnected.'));
+$('hotspot-form').onsubmit = guarded(() => action({action: 'hotspot-save', ssid: $('hotspot-ssid').value, password: $('hotspot-password').value, hotspot_network: {ip_address: $('hotspot-ip').value.trim(), prefix_length: Number($('hotspot-prefix').value), dhcp_start: $('hotspot-dhcp-start').value.trim(), dhcp_end: $('hotspot-dhcp-end').value.trim()}}, 'Save hotspot settings? If the hotspot is active, your phone will disconnect.', 'Hotspot settings are being saved. Rejoin if disconnected, then open http://' + $('hotspot-ip').value.trim() + '/admin.'));
 $('home-form').onsubmit = guarded(() => action({action: 'connect', ssid: $('home-ssid').value, password: $('home-password').value, security: $('home-security').value, hidden: $('home-hidden').checked}, 'Connect to this Wi-Fi and turn off the hotspot?', 'Joining Wi-Fi. Connect your phone to the same network and use the TV’s IP address. If joining fails, the hotspot returns.'));
-$('switch-hotspot').onclick = guarded(() => action({action: 'hotspot'}, 'Switch to hotspot mode and leave the existing Wi-Fi network?', 'Switching to hotspot. Join the hotspot and open http://192.168.50.1/admin.'));
+$('switch-hotspot').onclick = guarded(() => action({action: 'hotspot'}, 'Switch to hotspot mode and leave the existing Wi-Fi network?', 'Switching to hotspot. Join the hotspot and open http://' + hotspotIP + '/admin.'));
 $('reboot').onclick = guarded(() => action({action: 'reboot'}, 'Restart the Pi now?', 'Restarting. Wait for the slideshow and Wi-Fi to return.'));
 $('refresh').onclick = guarded(poll);
 $('home-security').onchange = () => { $('home-password').disabled = $('home-security').value === 'open'; };

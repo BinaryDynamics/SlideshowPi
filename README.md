@@ -44,13 +44,17 @@ The text file is consumed and removed from bootfs after successful setup. Keep y
 
 ## Configuration reference
 
-See [slideshowpi.conf.example](slideshowpi.conf.example) for the complete format.
+See [slideshowpi.conf.example](slideshowpi.conf.example) for the complete format. Omitted hotspot IP settings use the defaults below. Use a private subnet within `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16`. The Pi and both DHCP endpoints must be usable addresses in the same subnet. The inclusive DHCP range must exclude the Pi's address. For example, set `ip_address = "192.168.60.1"`, `prefix_length = 24`, `dhcp_start = "192.168.60.20"`, and `dhcp_end = "192.168.60.200"` together.
 
 | Setting | Meaning |
 | --- | --- |
 | `device.country` | Uppercase two-letter wireless country code |
 | `hotspot.ssid` | 1-32 UTF-8 bytes; spaces supported |
 | `hotspot.password` | 8-63 printable ASCII characters |
+| `hotspot.ip_address` | Pi's hotspot IPv4 address; default `192.168.50.1` |
+| `hotspot.prefix_length` | Subnet prefix, 8-30; default `24` (`255.255.255.0`) |
+| `hotspot.dhcp_start` | First address offered to phones; default `192.168.50.20` |
+| `hotspot.dhcp_end` | Last address offered to phones; default `192.168.50.200` |
 | `admin.password` | 12-128 printable ASCII characters |
 | `network.mode` | `hotspot` or `client` |
 | `home_wifi.ssid` | Saved existing network, optional in hotspot mode |
@@ -62,12 +66,12 @@ Existing Wi-Fi uses DHCP. Enterprise authentication, browser-login guest network
 
 ## Admin and networking
 
-Open `http://<current-IP>/admin`. In hotspot mode the IP is `192.168.50.1`; in client mode it is assigned by the router and shown on the TV. The web server listens in both modes without restarting when the address changes. `slideshowpi.local` may also work if your OS/network supplies mDNS; use the numeric IP if it does not.
+Open `http://<current-IP>/admin`. In hotspot mode the IP defaults to `192.168.50.1` or uses your configured `hotspot.ip_address`; in client mode it is assigned by the router and shown on the TV. The web server listens in both modes without restarting when the address changes. `slideshowpi.local` may also work if your OS/network supplies mDNS; use the numeric IP if it does not.
 
 - **Restart:** confirms the action, responds to the browser, then restarts the Pi.
-- **Hotspot settings:** save the name and password. A blank password retains the existing one. Changing an active hotspot disconnects phones, and any printed Wi-Fi QR code must be regenerated.
+- **Hotspot settings:** save the name, password, Pi IP address, subnet prefix and DHCP range. Changing IP settings restarts the hotspot and DHCP; reconnect and open the new IP address. A blank password retains the existing one. Changing an active hotspot disconnects phones, and any printed Wi-Fi QR code must be regenerated.
 - **Existing Wi-Fi:** enter its name/security/password and select Save and connect. The hotspot switches off. A blank password reuses the saved password only for the same network. Join that network on your phone and use the TV's new IP.
-- **Switch to hotspot:** leaves the existing network and restores the configured hotspot at `192.168.50.1`.
+- **Switch to hotspot:** leaves the existing network and restores the hotspot at its configured IP address.
 - **Recovery:** a failed join restores hotspot mode. Losing the client's Wi-Fi IPv4 address for 90 seconds also restores hotspot mode. This does not detect guest-network isolation or an internet outage while Wi-Fi remains connected.
 - **Diagnostics:** refreshes every 5 seconds. CPU needs two samples. Power flags distinguish current conditions from events since boot. The HDMI player reports its canvas size and a heartbeat; unavailable readings are labelled accordingly. AP/DNS services being inactive in client mode is expected.
 

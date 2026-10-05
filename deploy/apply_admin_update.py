@@ -12,7 +12,7 @@ import traceback
 FILES = ['player.py', 'run.py', 'slideshow/web.py', 'slideshow/admin_client.py',
          'slideshow/configuration.py', 'templates/index.html', 'templates/admin.html',
          'static/admin.js', 'static/app.js', 'static/style.css', 'deploy/admin_service.py',
-         'deploy/pi-slideshow-admin.service', 'deploy/pi-slideshow-web.service']
+         'deploy/pi-slideshow-admin.service', 'deploy/pi-slideshow-web.service', 'deploy/hotspot-start.sh']
 NM_CONFIG = '[device-pi-slideshow]\nmatch-device=interface-name:wlan0\nmanaged=0\n'
 
 
@@ -66,7 +66,7 @@ def apply(source, boot, app, units, data, config, nm_dir, enable=True):
             loader.load_config(text_config)
         except Exception:
             raise ValueError('Invalid slideshowpi.conf; credential input is not logged.') from None
-    changes = [(app / name, (source / name).read_bytes(), 0o644) for name in FILES]
+    changes = [(app / name, (source / name).read_bytes(), 0o755 if name.endswith('.sh') else 0o644) for name in FILES]
     changes += [(units / name, (source / 'deploy' / name).read_bytes(), 0o644)
                 for name in ['pi-slideshow-admin.service', 'pi-slideshow-web.service']]
     changes += [(units / 'pi-slideshow-display.service.d/admin-update.conf',
@@ -97,7 +97,7 @@ def main():
                       Path('/etc/NetworkManager/conf.d'))
         report.write_text(f'Admin/IP/diagnostics update installed. {count} photos and settings preserved.\n'
                           'HDMI configuration preserved. Normal boot restored. Rebooting.\n'
-                          'Open http://192.168.50.1/admin. Use the password in your slideshowpi.conf.\n')
+                          'Open /admin at the configured hotspot IP (default 192.168.50.1). Use the password in your slideshowpi.conf.\n')
     except Exception:
         report.write_text('Admin update failed. Normal boot restored.\n' + traceback.format_exc())
         raise
