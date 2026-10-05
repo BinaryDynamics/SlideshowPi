@@ -70,7 +70,7 @@ The initial photo folder is SD storage at `/var/lib/pi-slideshow/photos`, playba
 
 ## Admin and networking
 
-Open `http://<current-IP>/admin`. In hotspot mode the IP defaults to `192.168.50.1` or uses your configured `hotspot.ip_address`; in client mode it is assigned by the router and shown on the TV. The web server listens in both modes without restarting when the address changes. `slideshowpi.local` may also work if your OS/network supplies mDNS; use the numeric IP if it does not.
+Open `http://<current-IP>/admin`. In hotspot mode the IP defaults to `192.168.50.1` or uses your configured `hotspot.ip_address`; in client mode it is assigned by the router and shown on the TV. A small overlay in the upper-left corner shows the network mode and Wi-Fi name above the current IP address, updating even while playback is paused. The web server listens in both modes without restarting when the address changes. `slideshowpi.local` may also work if your OS/network supplies mDNS; use the numeric IP if it does not.
 
 - **Device settings:** change the wireless country; hotspot clients may briefly disconnect. OS login, SSH and hostname remain Raspberry Pi Imager settings.
 - **Admin password:** supply the current password and a new 12-128 character password. Sign in again after saving; existing admin sessions are invalidated. Keep your private recovery copy up to date.

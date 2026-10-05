@@ -24,24 +24,35 @@ def main():
     pygame.mouse.set_visible(False)
     font = pygame.font.Font(None, 32)
     ip_font = pygame.font.Font(None, max(16, min(24, round(screen.get_height() / 60))))
-    base_frame, ip_text, drawn_ip = None, '', None
+    base_frame, network_text, drawn_network = None, (), None
     reporter = AdminClient(timeout=0.5)
     next_report, frame_seconds = 0, None
     previous, failed = None, None
     retry_at = 0
 
     def draw():
-        nonlocal drawn_ip
+        nonlocal drawn_network
         if base_frame is not None:
             screen.blit(base_frame, (0, 0))
-        if ip_text:
-            label = ip_font.render(ip_text, True, (210, 210, 210))
-            backing = pygame.Surface((label.get_width() + 12, label.get_height() + 8), pygame.SRCALPHA)
+        if network_text:
+            labels = []
+            max_width = max(1, min(screen.get_width() - 28, round(screen.get_width() * 0.35)))
+            for line in network_text:
+                shortened = line
+                while shortened and ip_font.size(shortened)[0] > max_width:
+                    shortened = shortened[:-1]
+                if shortened != line:
+                    shortened = shortened[:-3] + '...'
+                labels.append(ip_font.render(shortened, True, (210, 210, 210)))
+            line_height = ip_font.get_linesize() + 2
+            backing = pygame.Surface((max(label.get_width() for label in labels) + 12,
+                                      line_height * len(labels) + 6), pygame.SRCALPHA)
             backing.fill((0, 0, 0, 135))
-            backing.blit(label, (6, 4))
+            for n, label in enumerate(labels):
+                backing.blit(label, (6, 4 + n * line_height))
             screen.blit(backing, (8, 8))
         pygame.display.flip()
-        drawn_ip = ip_text
+        drawn_network = network_text
 
     def message(lines):
         nonlocal base_frame
@@ -76,15 +87,22 @@ def main():
             with urlopen(BASE + '/api/state', timeout=10) as response:
                 state = json.load(response)
             current = state['current']
-            ip_text = 'IP: ' + ' / '.join(a['address'] for a in state.get('network', {}).get('addresses', []))
-            if ip_text == 'IP: ':
-                ip_text = 'IP: connecting...'
+            network = state.get('network', {})
+            mode = network.get('mode')
+            if mode == 'hotspot':
+                network_name = 'Hotspot: ' + (network.get('hotspot_ssid') or 'SlideshowPi')
+            elif mode == 'client':
+                network_name = 'Wi-Fi: ' + (network.get('home_ssid') or 'connected')
+            else:
+                network_name = 'Network: connecting...'
+            addresses = ' / '.join(a['address'] for a in network.get('addresses', []))
+            network_text = (network_name, 'IP: ' + (addresses or 'connecting...'))
             display_size = screen.get_size()
             frame_key = (current['frame_key'], display_size) if current else None
             if not current:
                 if previous != 'empty':
-                    message(['SlideshowPi', 'Connect to the Slideshow Wi-Fi hotspot.',
-                             'Open http://192.168.50.1 to select folders or upload photos.'])
+                    message(['SlideshowPi', 'Connect to the Wi-Fi network shown in the top-left corner.',
+                             'Open its IP address in your browser to select folders or upload photos.'])
                     previous = 'empty'
             elif frame_key != previous:
                 if failed == frame_key and time.monotonic() < retry_at:
@@ -106,7 +124,7 @@ def main():
                     print(f'Image failed: {error}', flush=True)
                     failed, retry_at = frame_key, time.monotonic() + 10
                     message(['Unable to display this image.', 'Choose another image on the configuration page.'])
-            if drawn_ip != ip_text:
+            if drawn_network != network_text:
                 draw()
             if time.monotonic() >= next_report:
                 try:
