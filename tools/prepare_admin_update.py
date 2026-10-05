@@ -16,14 +16,19 @@ HOOK = ('systemd.run="/usr/bin/python3 /boot/firmware/pi-slideshow/admin-update/
         'systemd.unit=kernel-command-line.target')
 
 
-def prepare(card, configuration):
-    load_config(configuration)  # Validate before any writes.
+def prepare(card, configuration=None):
+    if configuration is not None:
+        load_config(configuration)  # Validate before any writes.
     card = Path(card).resolve()
     if card == ROOT or ROOT in card.parents or card in ROOT.parents:
         raise ValueError('Specify the SD boot partition, not the project directory.')
     for name in ['cmdline.txt', 'config.txt', 'bcm2708-rpi-zero-w.dtb', 'pi-slideshow-status.txt']:
         if not (card / name).is_file():
             raise ValueError('Not the expected installed Pi SD card: ' + name)
+    if configuration is None:
+        report = card / 'pi-slideshow-admin-update.txt'
+        if not report.is_file() or 'installed' not in report.read_text().lower():
+            raise ValueError('First admin installation requires --config with your private settings.')
     original = (card / 'cmdline.txt').read_bytes()
     command = original.decode().strip()
     destination = card / 'pi-slideshow/admin-update'
@@ -45,9 +50,9 @@ def prepare(card, configuration):
             raise RuntimeError('Card readback failed: ' + name)
         manifest.append(hashlib.sha256(content).hexdigest() + '  ' + name)
     (destination / 'SHA256SUMS').write_text('\n'.join(manifest) + '\n', encoding='ascii', newline='\n')
-    if Path(configuration).resolve() != (card / 'slideshowpi.conf').resolve():
+    if configuration is not None and Path(configuration).resolve() != (card / 'slideshowpi.conf').resolve():
         shutil.copyfile(configuration, card / 'slideshowpi.conf')
-    if (card / 'slideshowpi.conf').read_bytes() != Path(configuration).read_bytes():
+    if configuration is not None and (card / 'slideshowpi.conf').read_bytes() != Path(configuration).read_bytes():
         raise RuntimeError('Configuration readback failed.')
     armed = (command + ' ' + HOOK + '\n').encode()
     (card / 'cmdline.txt').write_bytes(armed)
@@ -60,6 +65,6 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--drive', required=True)
-    parser.add_argument('--config', required=True)
+    parser.add_argument('--config', help='Optional private settings to apply; omit to retain an existing admin configuration.')
     args = parser.parse_args()
     prepare(args.drive, args.config)

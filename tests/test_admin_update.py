@@ -57,3 +57,17 @@ def test_corrupted_update_changes_no_app_files_and_restores_boot(tmp_path):
         update.apply(*paths, enable=False)
     assert (app / 'player.py').read_text() == 'old player'
     assert (boot / 'cmdline.txt').read_bytes() == (source / 'cmdline.original').read_bytes()
+
+
+def test_update_without_setup_file_retains_existing_admin_configuration(tmp_path):
+    paths = fixture(tmp_path)
+    source, boot, app, units, data, config, nm = paths
+    (boot / 'slideshowpi.conf').unlink()
+    auth = b'{"salt":"existing","digest":"existing"}'
+    network = b'{"mode":"client","hotspot_network":{"ip_address":"10.20.30.1"}}'
+    (config / 'admin-auth.json').write_bytes(auth)
+    (config / 'network.json').write_bytes(network)
+    assert update.apply(*paths, enable=False) == 1
+    assert (config / 'admin-auth.json').read_bytes() == auth
+    assert (config / 'network.json').read_bytes() == network
+    assert not (boot / 'slideshowpi.conf').exists()

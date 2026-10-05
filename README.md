@@ -98,6 +98,8 @@ sudo cat /etc/pi-slideshow/admin-password.txt
 py tools/prepare_admin_update.py --drive D:\ --config slideshowpi.conf
 ```
 
+For a device that has already applied an admin update, omit `--config` to keep all current passwords, network and playback settings. Supply it only when you also want to apply the settings from that file.
+
 This stages an application update on bootfs and arms a one-time maintenance boot. It backs up replaced application/systemd files on the Pi, verifies the payload, preserves uploaded photos and playback settings, and restores the original boot command before applying changes. An explicitly supplied `[slideshow]` section overrides its playback options; omitting it preserves existing choices. It preserves Xorg configuration and existing display-service overrides, including working gamma fixes. The admin service applies your text configuration on the subsequent normal boot. Start in hotspot mode if you want to preserve easy local access.
 
 After staging, safely eject and boot the Pi. Allow the maintenance update and one automatic reboot. Check `pi-slideshow-admin-update.txt` on bootfs if the update fails. A failed update restores normal boot rather than looping in maintenance.
