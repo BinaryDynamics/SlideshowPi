@@ -51,6 +51,15 @@ Use **Raspberry Pi OS Lite (32-bit), Trixie**, installed through Raspberry Pi Im
 
 You need a microSD card (16 GB or larger recommended), a reliable power supply, and a mini-HDMI cable/adapter. For USB storage use an OTG adapter in the data port, or a powered hub for higher-power drives. The Zero W uses **2.4 GHz Wi-Fi**. Installation needs internet access; playback does not.
 
+## Choose a setup method
+
+Both methods install the same application and start the slideshow automatically after reboot.
+
+| Method | Choose this when |
+| --- | --- |
+| [Prepare the SD card from Windows](#prepare-an-sd-card-from-windows) | You want to copy the application onto a freshly flashed card before the Pi's first boot. The Pi installs it automatically. |
+| [Install directly on the Pi](#install-directly-on-the-pi) | Your Pi already boots and has internet access, and you prefer to run the installer over SSH or a local terminal. No automatic first-boot setup is needed. |
+
 ## Prepare an SD card from Windows
 
 This workflow modifies an **already-flashed** card. It never formats the card. Use it before the Pi's first boot.
@@ -71,6 +80,42 @@ This workflow modifies an **already-flashed** card. It never formats the card. U
 7. Upload photos, select folders, and choose playback settings. Open **`/admin`** using the admin password in your private text file. All device/network settings, the admin password, playback options and photo-folder selection can be changed there.
 
 The text file is consumed and removed from bootfs after successful setup. Keep your own secure copy outside Git for recovery. If setup fails, bootfs `pi-slideshow-status.txt` or `journalctl -u pi-slideshow-install -b` provides status. Do not post your real configuration, Imager files, photos or credentials in public issues.
+
+## Install directly on the Pi
+
+Use **Raspberry Pi OS Lite (32-bit), Trixie** with internet access. When flashing a new card, use Raspberry Pi Imager to set your OS username/password, enable SSH, choose your wireless country, and configure an existing Wi-Fi network. Boot the Pi normally and connect over SSH or open a local terminal.
+
+1. Download the project and run the installer:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y git
+   git clone https://github.com/BinaryDynamics/SlideshowPi.git
+   cd SlideshowPi
+   sudo env COUNTRY=GB bash deploy/install.sh
+   ```
+
+   Replace `GB` with your actual two-letter wireless country code. The installer installs packages and system services, creates the default `SlideshowPi` hotspot and generates separate Wi-Fi and admin passwords. Keep the Pi powered on until installation finishes.
+
+2. Before rebooting, display and save the generated credentials somewhere private:
+
+   ```bash
+   sudo cat /etc/pi-slideshow/credentials.txt
+   sudo cat /etc/pi-slideshow/admin-password.txt
+   ```
+
+   The first file contains the hotspot name, Wi-Fi password and web address; the second contains the admin password. Do not post these files in public issues.
+
+3. Reboot:
+
+   ```bash
+   sudo reboot
+   ```
+
+4. The Pi starts the slideshow and switches from the existing Wi-Fi to its **SlideshowPi** hotspot. This disconnects an SSH session using the previous Wi-Fi. Join the hotspot with the generated Wi-Fi password, choose to stay connected despite **No internet**, and open **http://192.168.50.1**.
+5. Open **http://192.168.50.1/admin**, sign in using the generated admin password, and customise network settings, passwords, playback and photo folders. You can also switch back to an existing Wi-Fi network there. Upload photos using the main page.
+
+The Windows preparation tool and cloud-init first-boot hook are not used by this method. There is no need to create an application configuration file for the default installation; you can customise it through `/admin` afterwards. The installer enables automatic slideshow startup for subsequent boots.
 
 ## Configuration reference
 
