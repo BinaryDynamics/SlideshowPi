@@ -151,3 +151,30 @@ def test_no_wifi_does_not_block_local_player_or_cec(protected):
     assert client.post('/api/cec-control', json={'action': 'pause'}, environ_overrides=local).status_code == 200
     assert not lib.playing
     assert client.get('/api/files').status_code == 401
+
+
+def test_stale_dhcp_address_does_not_hide_lost_wifi_association(manager):
+    m, commands, root = manager
+    m.settings['mode'] = 'client'
+    m.interfaces = lambda: [dict(name='wlan0', wireless=True, carrier=False)]
+    old_address = [dict(interface='wlan0', address='192.168.1.40')]
+    m.reconcile_network(old_address, now=1)
+    m.reconcile_network(old_address, now=92)
+    assert m.jobs.get_nowait()[0] == 'hotspot'
+
+
+def test_startup_missing_home_network_restores_hotspot(manager):
+    m, commands, root = manager
+    m.active_wifi = None
+    m.settings['mode'] = 'client'
+    m.settings['home'] = dict(ssid='Absent home', security='open', password='', hidden=False)
+    def runner(*args, **kwargs):
+        commands.append(args)
+        if args[:4] == ('nmcli', '--wait', '45', 'connection'):
+            raise subprocess.CalledProcessError(10, args)
+        return SimpleNamespace(stdout='')
+    m.run = runner
+    m.reconcile_network([], now=1)
+    m.perform(*m.jobs.get_nowait())
+    assert m.runtime_mode == 'hotspot' and not m.busy
+    assert ('systemctl', 'restart', 'pi-slideshow-hotspot') in commands

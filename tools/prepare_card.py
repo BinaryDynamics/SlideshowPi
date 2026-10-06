@@ -93,6 +93,8 @@ def prepare(card, setup):
     for directory in ('slideshow', 'templates', 'static', 'deploy'):
         shutil.copytree(PROJECT / directory, destination / directory, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    for script in (destination / 'deploy').rglob('*.sh'):
+        script.write_bytes(script.read_bytes().replace(b'\r\n', b'\n'))
     for filename in ('run.py', 'player.py', 'README.md'):
         shutil.copy2(PROJECT / filename, destination / filename)
     with (destination / 'setup.json').open('w', encoding='utf8', newline='\n') as out:
@@ -113,7 +115,10 @@ def prepare(card, setup):
                   for p in (PROJECT / directory).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc']:
         copied = destination / local.relative_to(PROJECT)
-        if hashlib.sha256(local.read_bytes()).digest() != hashlib.sha256(copied.read_bytes()).digest():
+        expected = local.read_bytes()
+        if local.suffix == '.sh':
+            expected = expected.replace(b'\r\n', b'\n')
+        if hashlib.sha256(expected).digest() != hashlib.sha256(copied.read_bytes()).digest():
             raise ValueError(f'File verification failed: {local.name}')
     (card / 'pi-slideshow-status.txt').write_text(
         'Prepared on Windows. Insert into Pi and power on with configured home Wi-Fi available.\n'

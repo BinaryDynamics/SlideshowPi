@@ -66,7 +66,7 @@ def apply(source, boot, app, units, data, config, nm_dir, enable=True):
             loader.load_config(text_config)
         except Exception:
             raise ValueError('Invalid slideshowpi.conf; credential input is not logged.') from None
-    changes = [(app / name, (source / name).read_bytes(), 0o755 if name.endswith('.sh') else 0o644) for name in FILES]
+    changes = [(app / name, (source / name).read_bytes().replace(b'\r\n', b'\n') if name.endswith('.sh') else (source / name).read_bytes(), 0o755 if name.endswith('.sh') else 0o644) for name in FILES]
     changes += [(units / name, (source / 'deploy' / name).read_bytes(), 0o644)
                 for name in ['pi-slideshow-admin.service', 'pi-slideshow-web.service']]
     changes += [(units / 'pi-slideshow-display.service.d/admin-update.conf',

@@ -71,3 +71,19 @@ def test_update_without_setup_file_retains_existing_admin_configuration(tmp_path
     assert (config / 'admin-auth.json').read_bytes() == auth
     assert (config / 'network.json').read_bytes() == network
     assert not (boot / 'slideshowpi.conf').exists()
+
+
+def test_update_normalizes_verified_windows_shell_scripts(tmp_path):
+    paths = fixture(tmp_path)
+    source, boot, app, units, data, config, nm = paths
+    name = 'deploy/hotspot-start.sh'
+    script = source / name
+    content = script.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+    script.write_bytes(content)
+    manifest = source / 'SHA256SUMS'
+    lines = [hashlib.sha256(content).hexdigest() + '  ' + name if line.endswith('  ' + name) else line
+             for line in manifest.read_text().splitlines()]
+    manifest.write_text('\n'.join(lines))
+    assert update.apply(*paths, enable=False) == 1
+    assert b'\r' not in (app / name).read_bytes()
+    assert (data / 'photos/family.jpg').read_bytes() == b'original image bytes'

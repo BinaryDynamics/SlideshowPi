@@ -299,3 +299,9 @@ recursive = true
 ```
 
 Preloaded SD images belong in the application photo folder, not the boot partition. USB photos can be copied onto a supported USB drive from Windows before connecting it to the Pi.
+
+### Hotspot fallback troubleshooting
+
+A failed home-network join restores the hotspot when Wi-Fi hardware is present. If a connected home network disappears, the monitor checks both Wi-Fi link state and IPv4 addressing; a stale DHCP address does not prevent fallback after the 90-second grace period. No Wi-Fi hardware still uses offline mode.
+
+Releases v0.1.0-beta.11 and v0.1.0-beta.12 contained a hotspot startup script with Windows CRLF line endings in the ZIP/Windows SD payload. Bash can reject this with an `invalid option name` error, preventing the hotspot from starting. Update to v0.1.0-beta.13 or later. New installation packages and SD preparation/update tools normalize shell scripts to Unix LF line endings. The SD updater also repairs verified older CRLF shell payloads when deploying them. Photos and network credentials are preserved.

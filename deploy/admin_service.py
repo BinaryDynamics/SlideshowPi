@@ -399,7 +399,8 @@ class Manager:
             elif self.active_wifi == wifi:
                 self.runtime_mode = self.settings['mode']
                 if self.settings['mode'] == 'client':
-                    connected = any(a['interface'] == wifi for a in addresses)
+                    connected = any(a['interface'] == wifi for a in addresses) and any(
+                        item['name'] == wifi and item['carrier'] for item in interfaces)
                     self.lost_since = None if connected else self.lost_since if self.lost_since is not None else now
                     if self.lost_since is not None and now - self.lost_since > 90:
                         self.message = 'Home Wi-Fi disconnected. Restoring hotspot.'

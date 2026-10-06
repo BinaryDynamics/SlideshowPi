@@ -43,6 +43,8 @@ def prepare(card, configuration=None):
     manifest = []
     for name in updater.FILES + ['apply.py']:
         content = (ROOT / ('deploy/apply_admin_update.py' if name == 'apply.py' else name)).read_bytes()
+        if name.endswith('.sh'):
+            content = content.replace(b'\r\n', b'\n')
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)

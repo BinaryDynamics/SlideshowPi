@@ -14,5 +14,8 @@ for folder in included:
                  not p.name.startswith('create_family_card'))
 with zipfile.ZipFile(destination, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(files):
-        archive.write(path, 'SlideshowPi/' + path.relative_to(root).as_posix())
+        content = path.read_bytes()
+        if path.suffix == '.sh':
+            content = content.replace(b'\r\n', b'\n')
+        archive.writestr('SlideshowPi/' + path.relative_to(root).as_posix(), content)
 print(destination)
