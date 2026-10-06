@@ -97,11 +97,11 @@ def load_config(path=None, default_country='GB'):
                 admin_password=password(raw.get('admin', {}).get('password') or secrets.token_urlsafe(18), admin=True),
                 network_mode=mode, home=home, photo_access=dict(enabled=enabled, password=photo_password),
                 photo_access_custom='photo_access' in raw, playback=playback_settings(raw.get('slideshow', {})),
-                playback_custom='slideshow' in raw, hotspot_network=hotspot_network(
+                playback_custom='slideshow' in raw, auto_folders_custom='auto_folders' in raw.get('slideshow', {}), hotspot_network=hotspot_network(
                     {k: hotspot[k] for k in HOTSPOT_DEFAULTS if k in hotspot}))
 
 
-PLAYBACK_DEFAULTS = dict(seconds=10, shuffle=False, recursive=True, fit='contain')
+PLAYBACK_DEFAULTS = dict(auto_folders=True, seconds=10, shuffle=False, recursive=True, fit='contain')
 
 
 def playback_settings(values):
@@ -110,7 +110,7 @@ def playback_settings(values):
     settings = {**PLAYBACK_DEFAULTS, **values}
     if type(settings['seconds']) not in (int, float) or not 1 <= settings['seconds'] <= 3600:
         raise ValueError('Slide duration must be from 1 to 3600 seconds.')
-    if any(type(settings[k]) is not bool for k in ('shuffle', 'recursive')) or settings['fit'] not in ('contain', 'cover'):
+    if any(type(settings[k]) is not bool for k in ('shuffle', 'recursive', 'auto_folders')) or settings['fit'] not in ('contain', 'cover'):
         raise ValueError('Choose valid slideshow fit, shuffle and recursive settings.')
     return {k: settings[k] for k in PLAYBACK_DEFAULTS}
 

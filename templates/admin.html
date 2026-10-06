@@ -16,7 +16,7 @@
     <button class="primary">Sign in</button></form>
   </section>
   <div id="admin-content" hidden>
-    <section class="card"><h2>Connection</h2><p id="network-summary"></p><div id="addresses"></div><p id="operation" class="hint"></p>
+    <section class="card"><h2>Connection</h2><p id="network-summary"></p><p id="network-hardware" class="hint"></p><div id="addresses"></div><p id="operation" class="hint"></p>
       <p class="hint">When changing Wi-Fi mode, this page may disconnect. Join the new network, then use the IP address shown in the top-left corner of the TV.</p>
     </section>
     <div class="columns">
@@ -50,7 +50,7 @@
       <label class="check"><input id="shuffle" type="checkbox">Shuffle photos</label>
       <label class="check"><input id="recursive" type="checkbox">Include subfolders</label>
       <button class="primary">Save slideshow settings</button>
-    </form><form id="admin-folders-form"><h2>Photo folders</h2><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
+    </form><form id="admin-folders-form"><h2>Photo folders</h2><label class="check"><input id="admin-folder-auto" type="checkbox">Automatically include all SD and USB photos</label><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
     <section class="card"><h2>TV remote control (HDMI-CEC)</h2><form id="cec-form">
       <label class="check"><input id="cec-enabled" type="checkbox" checked>Enable TV remote controls</label>
       <p class="hint">Enabled by default. Left / Right: previous / next photo. OK: play / pause. Play, Pause and Stop are also supported. Enable CEC on your TV; supported buttons vary by TV. Changes apply without restarting.</p>

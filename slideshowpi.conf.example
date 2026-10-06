@@ -25,6 +25,8 @@ security = "wpa" # wpa for WPA/WPA2 personal; open for a network without a passw
 hidden = false
 
 [slideshow]
+# Include all SD photos and newly connected USB drives by default.
+auto_folders = true
 seconds = 10
 shuffle = false
 recursive = true

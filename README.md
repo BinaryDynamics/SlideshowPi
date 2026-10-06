@@ -1,6 +1,6 @@
 # SlideshowPi
 
-Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It starts playback automatically, accepts photo uploads over Wi-Fi, and works offline.
+Turn a Raspberry Pi Zero, Zero W or Zero 2 W into a small HDMI photo slideshow appliance. It starts playback automatically, accepts photo uploads over Wi-Fi, and works offline.
 
 ## Features
 
@@ -276,3 +276,25 @@ Choose the prominent **Add / Manage Photos** button at the top of the slideshow 
 Moves and renames preserve saved rotations and update selected slideshow folders. Same-filesystem moves use a rename. Copies and moves between filesystems verify file contents with SHA-256 before completing; a cross-drive move removes originals only after verification. Missing, changed, linked or read-only entries are rejected. Operations run in the background; progress appears below the upload section and survives closing/reopening the page while the server remains running. Keep USB drives connected and the Pi powered until an operation finishes. Jobs are not resumed after a reboot or server restart; refresh storage after an interruption. A batch can finish partially; its results identify failed/skipped entries.
 
 The browser photo password, when enabled, protects the file manager and its APIs. Only photo storage is accessible; system/configuration files are outside its scope. Folder contents are loaded in pages, thumbnail requests are lazy, and transfers use bounded memory to suit the original Pi Zero W. Folder operations are limited to 20,000 entries; upload queues to 1,000 photos. Uploads retain the existing 32 MB / 24 megapixel limit. Conflicts currently support Keep both and Skip; replacing originals and drag-and-drop moves are not included.
+
+### Automatic offline / No Wi-Fi operation
+
+A Pi Zero without a Wi-Fi chip now boots the slideshow normally after installation. The TV shows **No Wi-Fi / Offline slideshow** when there is no network connection. HDMI playback, local SD/USB photos and CEC controls continue working; missing Wi-Fi does not stop the admin broker or playback clock.
+
+Network adapters are checked every five seconds. Connecting a Linux-supported USB Wi-Fi adapter starts the saved hotspot or home Wi-Fi mode automatically, including adapters whose interface name differs from `wlan0`. Hotspot use requires AP support in the adapter/driver. Connecting USB Ethernet enables networking through NetworkManager/DHCP; once an IPv4 address is assigned, the TV shows it and the same photo/admin pages are accessible there. An existing wired connection is retained. Unplugging adapters returns to No Wi-Fi when no wired connection remains. Network failures are retried, and saved credentials/preferences are retained when hardware is missing. The Admin connection section lists detected adapters, cable state and current addresses. A USB hub may be needed to connect storage and a network adapter together on a Zero.
+
+The fresh installer still needs internet access to download packages, through Wi-Fi or Ethernet. Install while connected, or use an already installed card; the staged SD updates require no internet. No USB networking driver or DHCP server is installed on your computer automatically. USB gadget networking must already be configured; a supported USB Ethernet adapter and normal DHCP network are the straightforward wired option. Adapter hotplug and no-Wi-Fi startup are covered by automated tests; physical adapter compatibility and DHCP still require hardware verification.
+
+### Default photo sources
+
+New installations automatically include all supported photos in `/var/lib/pi-slideshow/photos` on the SD card and all connected, mounted USB storage under `/media/slideshow`, including subfolders with the default recursive setting. Newly mounted drives join the playlist on the next storage scan (normally within 15 seconds); removed drives leave it. Supported formats and the existing 10,000-image playlist limit still apply.
+
+The slideshow and Admin folder sections offer **Automatically include all SD and USB photos**. Leave it enabled for automatic selection, or turn it off and choose specific folders. Existing installations with explicitly saved folder selections keep those selections during an upgrade; enable the checkbox to opt into the new behavior. In the setup text file, the setting is:
+
+```toml
+[slideshow]
+auto_folders = true
+recursive = true
+```
+
+Preloaded SD images belong in the application photo folder, not the boot partition. USB photos can be copied onto a supported USB drive from Windows before connecting it to the Pi.

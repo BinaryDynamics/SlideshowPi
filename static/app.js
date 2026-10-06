@@ -15,10 +15,11 @@ async function api(path, data) {
 function guarded(action) { return async event => { event?.preventDefault(); try { await action(); } catch (e) { notice(e.message, true); } }; }
 async function control(action, id, degrees) { await api('control', {action, id, degrees}); await poll(); }
 function populateFolders(next) {
-  const signature = JSON.stringify([next.folders, next.settings.folders]);
+  const signature = JSON.stringify([next.folders, next.settings.folders, next.settings.auto_folders]);
   if (folderSignature === signature) return;
-  const checked = initialized ? new Set([...$('folder-list').querySelectorAll('input:checked')].map(i => i.value)) : new Set(next.settings.folders);
+  const checked = initialized && !next.settings.auto_folders ? new Set([...$('folder-list').querySelectorAll('input:checked')].map(i => i.value)) : new Set(next.settings.folders);
   folderSignature = signature;
+  $('folder-auto').checked = next.settings.auto_folders === true;
   $('folder-list').replaceChildren();
   for (const path of next.folders) {
     const label = document.createElement('label'), input = document.createElement('input');
@@ -83,7 +84,7 @@ $('previous').onclick = guarded(() => control('previous'));
 $('rotate-left').onclick = guarded(() => control('rotate', undefined, -90));
 $('rotate-right').onclick = guarded(() => control('rotate', undefined, 90));
 $('playback-form').onsubmit = guarded(async () => { await api('settings', {seconds: Number($('seconds').value), fit: $('fit').value, shuffle: $('shuffle').checked, recursive: $('recursive').checked}); notice('Playback settings saved.'); await poll(); });
-$('folders-form').onsubmit = guarded(async () => { await api('settings', {folders: [...$('folder-list').querySelectorAll('input:checked')].map(i => i.value)}); page = 0; galleryKey = ''; notice('Photo folders saved.'); await poll(); });
+$('folders-form').onsubmit = guarded(async () => { await api('settings', {auto_folders: $('folder-auto').checked, folders: [...$('folder-list').querySelectorAll('input:checked')].map(i => i.value)}); page = 0; galleryKey = ''; notice('Photo folders saved.'); await poll(); });
 $('rescan').onclick = guarded(async () => { await api('rescan', {}); galleryKey = ''; await poll(); notice('Storage refreshed.'); });
 $('page-back').onclick = guarded(async () => { page = Math.max(0, page - 1); await loadGallery(); });
 $('page-next').onclick = guarded(async () => { page++; await loadGallery(); });

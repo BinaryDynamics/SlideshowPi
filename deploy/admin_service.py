@@ -91,9 +91,9 @@ def key_escape(value):
     return value.replace('\\', '\\\\').replace(' ', '\\s')
 
 
-def profile_text(home, profile_uuid):
+def profile_text(home, profile_uuid, interface='wlan0'):
     text = ('[connection]\nid=Pi Slideshow Home\nuuid=' + profile_uuid +
-            '\ntype=wifi\ninterface-name=wlan0\nautoconnect=false\n\n[wifi]\n'
+            '\ntype=wifi\ninterface-name=' + interface + '\nautoconnect=false\n\n[wifi]\n'
             'mode=infrastructure\nssid=' + key_escape(home['ssid']) +
             '\nhidden=' + str(home['hidden']).lower() + '\n')
     if home['security'] == 'wpa':
@@ -117,6 +117,24 @@ def replace_ap(source, ssid, password):
     lines = [line for line in source.splitlines()
              if not line.startswith(('ssid=', 'ssid2=', 'wpa_passphrase='))]
     return '\n'.join(lines) + '\nssid2=' + ssid.encode().hex() + '\nwpa_passphrase=' + password + '\n'
+
+
+def network_interfaces(root=Path('/sys/class/net')):
+    """Detect physical Ethernet, USB networking and Wi-Fi without assuming wlan0."""
+    result = []
+    for path in sorted(root.iterdir()):
+        if path.name == 'lo' or not re.fullmatch(r'[a-zA-Z0-9_.:-]{1,15}', path.name):
+            continue
+        wireless = (path / 'wireless').exists() or (path / 'phy80211').exists()
+        # Exclude virtual tunnels/bridges; USB gadget networking is supported too.
+        if not wireless and not (path / 'device').exists() and not path.name.startswith(('eth', 'en', 'usb')):
+            continue
+        try:
+            carrier = (path / 'carrier').read_text().strip() == '1'
+        except OSError:
+            carrier = False
+        result.append(dict(name=path.name, wireless=wireless, carrier=carrier))
+    return result
 
 
 def current_addresses():
@@ -178,7 +196,10 @@ def initialize(config=CONFIG, setup=None):
         data = Path('/var/lib/pi-slideshow') if config == CONFIG else config / 'data'
         target = data / 'settings.json'
         settings = json.loads(target.read_text()) if target.exists() else {}
-        settings.update(playback_settings(setup.get('playback', {})))
+        playback = playback_settings(setup.get('playback', {}))
+        if 'folders' in settings and not setup.get('auto_folders_custom'):
+            playback.pop('auto_folders', None)
+        settings.update(playback)
         atomic(target, json.dumps(settings), mode=0o644)
         if config == CONFIG:
             import pwd
@@ -191,10 +212,17 @@ def initialize(config=CONFIG, setup=None):
 
 
 class Manager:
-    def __init__(self, config=CONFIG, runner=run, addresses=current_addresses):
+    def __init__(self, config=CONFIG, runner=run, addresses=current_addresses, interfaces=network_interfaces):
         self.config = Path(config)
         self.run = runner
         self.addresses = addresses
+        self.interfaces = interfaces
+        self.status_interfaces = []
+        self.wifi_interface = None
+        self.runtime_mode = None
+        self.active_wifi = None
+        self.network_retry_at = 0
+        self.wired_retry = {}
         self.lock = threading.RLock()
         self.jobs = queue.Queue(maxsize=1)
         self.busy = False
@@ -216,7 +244,9 @@ class Manager:
             photo = json.loads((self.config / 'photo-auth.json').read_text())
             return {'cec_enabled': self.settings.get('cec_enabled', True), 'cec_status': self.cec_status,
                     'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
-                    'available': True, 'mode': self.settings['mode'],
+                    'available': True, 'mode': self.runtime_mode or self.settings['mode'],
+                    'preferred_mode': self.settings['mode'], 'wifi_available': bool(self.wifi_interface),
+                    'wifi_interface': self.wifi_interface, 'interfaces': list(self.status_interfaces),
                     'addresses': list(self.status_addresses), 'hostname': socket.gethostname(),
                     'hotspot_ssid': ap.get('ssid', ''), 'country': ap.get('country_code', 'GB'),
                     'auth_version': json.loads((self.config / 'admin-auth.json').read_text()).get('version'),
@@ -321,43 +351,126 @@ class Manager:
             self.jobs.put_nowait((action, values))
         return {'ok': True, 'message': 'Request accepted. Changes start in 3 seconds.'}
 
+    def wifi(self):
+        interfaces = self.interfaces()
+        names = [item['name'] for item in interfaces if item['wireless']]
+        preferred = self.settings.get('wifi_interface', 'wlan0')
+        self.wifi_interface = preferred if preferred in names else (names[0] if names else None)
+        if not self.wifi_interface:
+            raise ValueError('No Wi-Fi adapter is available. Settings can be saved and will apply when one is connected.')
+        return self.wifi_interface
+
+    def ap_dns(self, values=None):
+        return dnsmasq_text(values or self.settings.get('hotspot_network')).replace(
+            'interface=wlan0\n', 'interface=' + (self.wifi_interface or 'wlan0') + '\n')
+
+    def queue_network(self, action, values):
+        self.busy = True
+        self.jobs.put_nowait((action, values))
+
+    def reconcile_network(self, addresses, now=None):
+        """One hotplug tick. Slow network activation runs on the job worker."""
+        now = time.monotonic() if now is None else now
+        interfaces = self.interfaces()
+        wifi_names = [item['name'] for item in interfaces if item['wireless']]
+        preferred = self.settings.get('wifi_interface', 'wlan0')
+        wifi = preferred if preferred in wifi_names else (wifi_names[0] if wifi_names else None)
+        wired = [item for item in interfaces if not item['wireless']]
+        wired_addresses = [a for a in addresses if any(i['name'] == a['interface'] for i in wired)]
+        with self.lock:
+            self.status_interfaces, self.wifi_interface = interfaces, wifi
+            self.status_addresses = addresses
+            if not wifi:
+                self.runtime_mode = 'wired' if wired_addresses else 'no-wifi'
+            if self.busy:
+                return
+            if not wifi:
+                self.lost_since = None
+                self.message = ('No Wi-Fi adapter. Web controls are available over the wired connection.'
+                                if wired_addresses else 'No Wi-Fi. Slideshow continues; waiting for a network adapter or cable.')
+                if self.active_wifi:
+                    self.active_wifi = None
+                    self.queue_network('network-stop', {})
+                    return
+            elif self.active_wifi != wifi and now >= self.network_retry_at:
+                self.message = 'Wi-Fi adapter detected. Enabling saved network settings.'
+                self.queue_network('network-start', {})
+                return
+            elif self.active_wifi == wifi:
+                self.runtime_mode = self.settings['mode']
+                if self.settings['mode'] == 'client':
+                    connected = any(a['interface'] == wifi for a in addresses)
+                    self.lost_since = None if connected else self.lost_since if self.lost_since is not None else now
+                    if self.lost_since is not None and now - self.lost_since > 90:
+                        self.message = 'Home Wi-Fi disconnected. Restoring hotspot.'
+                        self.queue_network('hotspot', {})
+                        return
+            for item in wired:
+                interface = item['name']
+                if item['carrier'] and not any(a['interface'] == interface for a in addresses) and now >= self.wired_retry.get(interface, 0):
+                    self.wired_retry[interface] = now + 60
+                    self.queue_network('wired-connect', {'interface': interface})
+                    return
+
     def stop_ap(self):
         self.run('systemctl', 'stop', *AP_UNITS)
 
     def hotspot(self):
+        interface = self.wifi()
+        self.settings['wifi_interface'] = interface
+        path = self.config / 'hostapd.conf'
+        text = '\n'.join(line for line in path.read_text().splitlines() if not line.startswith('interface='))
+        atomic(path, 'interface=' + interface + '\n' + text + '\n')
+        self.save()
         if shutil.which('iw'):
             self.run('iw', 'reg', 'set', ap_values(self.config / 'hostapd.conf').get('country_code', 'GB'))
-        atomic(self.config / 'dnsmasq.conf', dnsmasq_text(self.settings.get('hotspot_network')))
-        self.run('nmcli', 'device', 'set', 'wlan0', 'autoconnect', 'no')
-        self.run('nmcli', 'device', 'set', 'wlan0', 'managed', 'no')
+        atomic(self.config / 'dnsmasq.conf', self.ap_dns())
+        self.run('nmcli', 'device', 'set', interface, 'autoconnect', 'no')
+        self.run('nmcli', 'device', 'set', interface, 'managed', 'no')
         self.run('systemctl', 'restart', 'pi-slideshow-hotspot')
         self.run('systemctl', 'restart', 'pi-slideshow-ap', 'pi-slideshow-dns')
         self.settings['mode'] = 'hotspot'
+        self.active_wifi, self.runtime_mode = interface, 'hotspot'
+        self.network_retry_at = 0
         self.save()
         self.lost_since = None
 
     def connect(self):
+        interface = self.wifi()
         if shutil.which('iw'):
             self.run('iw', 'reg', 'set', ap_values(self.config / 'hostapd.conf').get('country_code', 'GB'))
         home = self.settings.get('home')
         if not home:
             raise ValueError('No home Wi-Fi is saved.')
-        atomic(PROFILE, profile_text(home, self.settings['profile_uuid']))
+        atomic(PROFILE, profile_text(home, self.settings['profile_uuid'], interface))
         self.run('nmcli', 'connection', 'load', str(PROFILE))
         self.stop_ap()
-        self.run('ip', 'address', 'flush', 'dev', 'wlan0')
-        self.run('nmcli', 'device', 'set', 'wlan0', 'autoconnect', 'no')
-        self.run('nmcli', 'device', 'set', 'wlan0', 'managed', 'yes')
+        self.run('ip', 'address', 'flush', 'dev', interface)
+        self.run('nmcli', 'device', 'set', interface, 'autoconnect', 'no')
+        self.run('nmcli', 'device', 'set', interface, 'managed', 'yes')
         self.run('nmcli', '--wait', '45', 'connection', 'up', 'uuid',
-                 self.settings['profile_uuid'], 'ifname', 'wlan0', timeout=55)
-        if not any(a['interface'] == 'wlan0' for a in self.addresses()):
+                 self.settings['profile_uuid'], 'ifname', interface, timeout=55)
+        if not any(a['interface'] == interface for a in self.addresses()):
             raise RuntimeError('No Wi-Fi IPv4 address assigned.')
+        self.settings['wifi_interface'] = interface
         self.settings['mode'] = 'client'
+        self.active_wifi, self.runtime_mode = interface, 'client'
+        self.network_retry_at = 0
         self.save()
         self.lost_since = None
 
     def execute(self, action, values):
-        if action == 'reboot':
+        if action == 'network-stop':
+            self.stop_ap()
+        elif action == 'wired-connect':
+            interface = values['interface']
+            if not any(i['name'] == interface and not i['wireless'] and i['carrier'] for i in self.interfaces()):
+                return
+            self.run('nmcli', 'device', 'set', interface, 'managed', 'yes')
+            self.run('nmcli', '--wait', '15', 'device', 'connect', interface, timeout=20)
+        elif action == 'network-start':
+            self.connect() if self.settings['mode'] == 'client' else self.hotspot()
+        elif action == 'reboot':
             self.run('systemctl', 'reboot')
         elif action == 'photo-access-save':
             configure_photo_access(self.config, values['enabled'], values['password'])
@@ -372,7 +485,7 @@ class Manager:
             atomic(path, re.sub(r'^country_code=.*$', 'country_code=' + values['country'], original, flags=re.M))
             try:
                 self.run('iw', 'reg', 'set', values['country'])
-                if self.settings['mode'] == 'hotspot':
+                if self.active_wifi and self.settings['mode'] == 'hotspot':
                     self.run('systemctl', 'restart', 'pi-slideshow-ap')
                     self.run('systemctl', 'is-active', '--quiet', 'pi-slideshow-ap')
             except Exception:
@@ -380,9 +493,12 @@ class Manager:
                 self.run('iw', 'reg', 'set', ap_values(path).get('country_code', 'GB'))
                 raise
         elif action == 'hotspot':
+            self.settings['mode'] = 'hotspot'
+            self.save()
             self.hotspot()
         elif action == 'connect':
             self.settings['home'] = values
+            self.settings['mode'] = 'client'
             self.save()
             self.connect()
         elif action == 'hotspot-save':
@@ -395,7 +511,7 @@ class Manager:
                 self.settings['hotspot_network'] = new_network
                 self.save()
                 atomic(self.config / 'dnsmasq.conf', dnsmasq_text(new_network))
-                if self.settings['mode'] == 'hotspot':
+                if self.active_wifi and self.settings['mode'] == 'hotspot':
                     self.stop_ap()
                     self.hotspot()
                     self.run('systemctl', 'is-active', '--quiet', 'pi-slideshow-ap')
@@ -414,12 +530,18 @@ class Manager:
             self.execute(action, values)
             self.message = 'Changes applied.'
         except Exception:
-            self.message = 'Operation failed. Returning to hotspot mode.'
-            try:
-                self.hotspot()
-            except Exception:
-                self.message = 'Hotspot recovery failed. Check the admin service log over SSH.'
-                print('Hotspot recovery failed.', flush=True)
+            self.message = 'Network operation unavailable. Slideshow continues.'
+            if action in ('connect', 'hotspot', 'network-start', 'hotspot-save'):
+                try:
+                    self.hotspot()
+                    self.message = 'Home Wi-Fi unavailable. Hotspot restored.'
+                except Exception:
+                    self.active_wifi = None
+                    try: self.stop_ap()
+                    except Exception: pass
+                    self.network_retry_at = time.monotonic() + 60
+                    self.runtime_mode = 'wired' if any(a['interface'] != self.wifi_interface for a in self.status_addresses) else 'no-wifi'
+                    self.message = 'Wi-Fi unavailable. Slideshow continues; networking will retry automatically.'
         finally:
             with self.lock:
                 self.busy = False
@@ -433,21 +555,15 @@ class Manager:
 
     def monitor(self, start_network=True):
         if start_network:
-            self.busy = True
-            try:
-                self.connect() if self.settings['mode'] == 'client' else self.hotspot()
-                self.message = 'Ready.'
-            except Exception:
-                self.message = 'Home Wi-Fi unavailable. Hotspot restored.'
-                self.hotspot()
-            finally:
-                self.busy = False
+            # Web and HDMI are independent of slow or missing network hardware.
+            self.busy = False
         previous_cpu = None
         counter = 0
         services, throttling = [], None
         while True:
             try:
                 addresses = self.addresses()
+                self.reconcile_network(addresses)
                 stats, previous_cpu = system_stats(previous_cpu)
                 if counter % 3 == 0:
                     output = self.run('systemctl', 'show', '--property=Id,ActiveState,SubState',
@@ -465,13 +581,6 @@ class Manager:
                 with self.lock:
                     self.status_addresses = addresses
                     self.stats = stats
-                    if not self.busy and self.settings['mode'] == 'client':
-                        connected = any(a['interface'] == 'wlan0' for a in addresses)
-                        self.lost_since = None if connected else self.lost_since or time.monotonic()
-                        if self.lost_since and time.monotonic() - self.lost_since > 90:
-                            self.busy = True
-                            self.message = 'Home Wi-Fi disconnected. Restoring hotspot.'
-                            self.jobs.put_nowait(('hotspot', {}))
             except Exception:
                 print('Unable to refresh network addresses.', flush=True)
             time.sleep(5)

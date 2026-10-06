@@ -28,14 +28,17 @@ async function poll() {
     signedIn(true);
     const h = n.hotspot_network || {ip_address: '192.168.50.1', prefix_length: 24, dhcp_start: '192.168.50.20', dhcp_end: '192.168.50.200'};
     hotspotIP = h.ip_address;
-    $('network-summary').textContent = n.mode === 'hotspot' ? 'Hotspot: ' + n.hotspot_ssid : n.mode === 'client' ? 'Connected to Wi-Fi: ' + n.home_ssid : 'Network status unavailable';
+    $('network-summary').textContent = n.mode === 'hotspot' ? 'Hotspot: ' + n.hotspot_ssid : n.mode === 'client' ? 'Connected to Wi-Fi: ' + n.home_ssid : n.mode === 'wired' ? 'Wired network connected · No Wi-Fi' : n.mode === 'no-wifi' ? 'No Wi-Fi · Slideshow works offline' : 'Network status unavailable';
     $('operation').textContent = n.message || '';
     $('addresses').replaceChildren();
     for (const address of n.addresses || []) { const p = document.createElement('p'); p.textContent = address.interface + ': http://' + address.address; $('addresses').append(p); }
+    $('network-hardware').textContent = (n.interfaces || []).map(i => i.name + (i.wireless ? ' (Wi-Fi)' : i.carrier ? ' (cable connected)' : ' (no cable)')).join(' · ') || 'No network adapters detected. Networking starts automatically when an adapter is connected.';
     $('cec-status').textContent = n.cec_status || 'CEC status unavailable.';
-    if (!initialized) { $('cec-enabled').checked = n.cec_enabled !== false; $('device-country').value = n.country || 'GB'; $('photo-access-enabled').checked = !!n.photo_access_enabled; const response = await fetch('/api/state'); const state = await response.json(); $('admin-folder-list').replaceChildren(); for (const path of state.folders) { const label = document.createElement('label'), input = document.createElement('input'); label.className = 'check'; input.type = 'checkbox'; input.value = path; input.checked = state.settings.folders.includes(path); label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '))); $('admin-folder-list').append(label); } for (const id of ['seconds', 'fit']) $(id).value = state.settings[id]; for (const id of ['shuffle', 'recursive']) $(id).checked = state.settings[id]; $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
+    if (!initialized) { $('cec-enabled').checked = n.cec_enabled !== false; $('device-country').value = n.country || 'GB'; $('photo-access-enabled').checked = !!n.photo_access_enabled; const response = await fetch('/api/state'); const state = await response.json(); $('admin-folder-auto').checked = state.settings.auto_folders === true; $('admin-folder-list').replaceChildren(); for (const path of state.folders) { const label = document.createElement('label'), input = document.createElement('input'); label.className = 'check'; input.type = 'checkbox'; input.value = path; input.checked = state.settings.folders.includes(path); label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '))); $('admin-folder-list').append(label); } for (const id of ['seconds', 'fit']) $(id).value = state.settings[id]; for (const id of ['shuffle', 'recursive']) $(id).checked = state.settings[id]; $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
     for (const id of ['switch-hotspot', 'reboot']) $(id).disabled = !!n.busy || pending;
     for (const form of ['hotspot-form', 'home-form', 'device-form', 'password-form', 'photo-access-form', 'cec-form']) $(form).querySelector('button').disabled = !!n.busy || pending;
+    $('switch-hotspot').disabled = !!n.busy || pending || n.wifi_available === false;
+    $('home-form').querySelector('button').disabled = !!n.busy || pending || n.wifi_available === false;
     $('stats').replaceChildren();
     stat('CPU usage', s.cpu_percent == null ? 'Waiting for sample' : s.cpu_percent + '%');
     stat('Load average (1 / 5 / 15 min)', s.load_average ? s.load_average.map(v => v.toFixed(2)).join(' / ') : 'Unavailable');
@@ -96,7 +99,7 @@ $('password-form').onsubmit = guarded(async () => {
 
 $('admin-folders-form').onsubmit = guarded(async () => {
   const folders = [...$('admin-folder-list').querySelectorAll('input:checked')].map(input => input.value);
-  const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Slideshow-Token': token}, body: JSON.stringify({folders})});
+  const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Slideshow-Token': token}, body: JSON.stringify({folders, auto_folders: $('admin-folder-auto').checked})});
   const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save photo folders.'); notice('Photo folders saved.');
 });
 

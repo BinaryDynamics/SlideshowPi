@@ -88,7 +88,9 @@ def manager(tmp_path, monkeypatch):
         commands.append(args)
         return SimpleNamespace(stdout='')
     monkeypatch.setattr(service, 'PROFILE', tmp_path / 'home.nmconnection')
-    manager = service.Manager(tmp_path, runner, lambda: [{'interface': 'wlan0', 'address': '192.168.1.40'}])
+    manager = service.Manager(tmp_path, runner, lambda: [{'interface': 'wlan0', 'address': '192.168.1.40'}],
+                              lambda: [dict(name='wlan0', wireless=True, carrier=True)])
+    manager.active_wifi = manager.wifi_interface = 'wlan0'
     return manager, commands, tmp_path
 
 

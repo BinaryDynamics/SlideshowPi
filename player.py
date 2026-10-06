@@ -88,21 +88,14 @@ def main():
                 state = json.load(response)
             current = state['current']
             network = state.get('network', {})
-            mode = network.get('mode')
-            if mode == 'hotspot':
-                network_name = 'Hotspot: ' + (network.get('hotspot_ssid') or 'SlideshowPi')
-            elif mode == 'client':
-                network_name = 'Wi-Fi: ' + (network.get('home_ssid') or 'connected')
-            else:
-                network_name = 'Network: connecting...'
-            addresses = ' / '.join(a['address'] for a in network.get('addresses', []))
-            network_text = (network_name, 'IP: ' + (addresses or 'connecting...'))
+            from slideshow.network import display_network
+            network_text = display_network(network)
             display_size = screen.get_size()
             frame_key = (current['frame_key'], display_size) if current else None
             if not current:
                 if previous != 'empty':
-                    message(['SlideshowPi', 'Connect to the Wi-Fi network shown in the top-left corner.',
-                             'Open its IP address in your browser to select folders or upload photos.'])
+                    message(['SlideshowPi', 'Add photos to SD storage or connect a USB drive.',
+                             'When a network is available, open the shown IP address to manage photos.'])
                     previous = 'empty'
             elif frame_key != previous:
                 if failed == frame_key and time.monotonic() < retry_at:

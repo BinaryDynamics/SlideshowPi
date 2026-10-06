@@ -19,10 +19,14 @@ class Library:
         self.lock = threading.RLock()
         self.scan_lock = threading.Lock()
         self.config_file = self.data / 'settings.json'
-        self.settings = {'folders': [str(self.sd)], 'seconds': 10, 'shuffle': False,
+        self.settings = {'auto_folders': True, 'folders': [str(self.sd)], 'seconds': 10, 'shuffle': False,
                          'recursive': True, 'fit': 'contain', 'rotations': {}}
         if self.config_file.exists():
-            self.settings.update(json.loads(self.config_file.read_text()))
+            saved = json.loads(self.config_file.read_text())
+            self.settings.update(saved)
+            # Existing explicit selections retain their meaning after an upgrade.
+            if 'folders' in saved and 'auto_folders' not in saved:
+                self.settings['auto_folders'] = False
         self.images = []
         self.folders = []
         self.current = None
@@ -66,6 +70,10 @@ class Library:
             if self.usb.exists():
                 roots += [p for p in self.usb.iterdir() if p.is_dir() and
                           not p.is_symlink() and os.path.ismount(p)]
+            with self.lock:
+                if self.settings['auto_folders']:
+                    selected = [str(root.resolve()) for root in roots]
+                    self.settings['folders'] = selected
             for root in roots:
                 for base, dirs, files in os.walk(root, followlinks=False):
                     dirs[:] = sorted(d for d in dirs if not d.startswith('.') and
@@ -186,6 +194,12 @@ class Library:
                     raise ValueError('Select up to 100 folders.')
                 updated['folders'] = list(dict.fromkeys(
                     str(self.allowed(p, directory=True)) for p in payload['folders']))
+            if 'folders' in payload:
+                updated['auto_folders'] = False
+            if 'auto_folders' in payload:
+                if type(payload['auto_folders']) is not bool:
+                    raise ValueError('Automatic folder selection must be true or false.')
+                updated['auto_folders'] = payload['auto_folders']
             self.settings = updated
             self.save()
             self.deadline = time.monotonic() + self.settings['seconds']

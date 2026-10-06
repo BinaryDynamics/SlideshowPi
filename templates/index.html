@@ -28,7 +28,7 @@
       <button class="primary" type="submit">Save playback settings</button>
     </form></section>
     <section class="card"><h2>Photo folders</h2><p class="hint">Choose one or more folders on the SD card or connected USB drives.</p>
-      <form id="folders-form"><div id="folder-list" class="folder-list"></div><button class="primary" type="submit">Use selected folders</button> <button type="button" id="rescan">Refresh storage</button></form>
+      <form id="folders-form"><label class="check"><input id="folder-auto" type="checkbox">Automatically include all SD and USB photos</label><p class="hint">Includes newly connected USB drives. Turn off to choose specific folders.</p><div id="folder-list" class="folder-list"></div><button class="primary" type="submit">Use selected folders</button> <button type="button" id="rescan">Refresh storage</button></form>
       <p id="missing" class="hint"></p>
     </section>
   </div>

@@ -31,7 +31,7 @@ def validate_setup(setup):
     ssid(setup.get('ssid'))
     password(setup.get('password'))
     result = {key: setup[key] for key in ('country', 'ssid', 'password')}
-    for key in ('admin_password', 'network_mode', 'home', 'hotspot_network', 'photo_access', 'photo_access_custom', 'playback', 'playback_custom'):
+    for key in ('admin_password', 'network_mode', 'home', 'hotspot_network', 'photo_access', 'photo_access_custom', 'playback', 'playback_custom', 'auto_folders_custom', 'cec_enabled', 'cec_custom'):
         if key in setup:
             result[key] = setup[key]
     defaults = load_config(default_country=result['country'])
