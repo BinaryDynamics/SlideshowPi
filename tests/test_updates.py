@@ -263,3 +263,26 @@ def test_github_repository_case_does_not_reject_canonical_asset_url():
     result = updates.latest(dict(UPDATE_DEFAULTS, repository='https://github.com/binarydynamics/slideshowpi'),
                             lambda *args, **kwargs: Response(json.dumps(data).encode()))
     assert result['tag'] == 'vTest'
+
+
+def test_update_health_waits_for_hdmi_player_and_cannot_be_spoofed_by_headers(web):
+    client, broker, headers = web
+    original = broker.status
+    assert client.get('/api/health').status_code == 403
+    assert client.get('/api/health', headers={'X-Slideshow-Local-Playback': 'true'}).status_code == 403
+    local = {'slideshow.local_playback': True}
+    assert client.get('/api/health', environ_overrides=local).json == {'ok': False}
+    broker.status = lambda: dict(original(), display_ready=True)
+    assert client.get('/api/health', environ_overrides=local).json == {'ok': True}
+    broker.status = lambda: dict(original(), display_ready=True, available=False)
+    assert client.get('/api/health', environ_overrides=local).json == {'ok': False}
+
+
+def test_healthy_checks_every_service_and_accepts_ready_player():
+    seen = []
+    def runner(*args): seen.append(args)
+    def open_url(url, **kwargs):
+        assert url == 'http://127.0.0.1:8081/api/health'
+        return Response(b'{"ok": true}')
+    assert updates.healthy(runner, open_url, timeout=1)
+    assert [args[-1] for args in seen] == updates.UNITS

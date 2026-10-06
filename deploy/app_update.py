@@ -221,12 +221,9 @@ def healthy(runner=run, open_url=None, timeout=75):
         try:
             for unit in UNITS:
                 runner('systemctl', 'is-active', '--quiet', unit)
-            with (open_url or opener.open)('http://127.0.0.1:8081/api/state', timeout=3) as response:
+            with (open_url or opener.open)('http://127.0.0.1:8081/api/health', timeout=3) as response:
                 payload = json.loads(response.read(2 * 1024 * 1024))
-                if (response.status == 200 and isinstance(payload, dict)
-                        and isinstance(payload.get('settings'), dict)
-                        and type(payload.get('playing')) is bool
-                        and payload.get('network', {}).get('available') is True): return True
+                if response.status == 200 and isinstance(payload, dict) and payload.get('ok') is True: return True
         except Exception: pass
         time.sleep(2)
     return False

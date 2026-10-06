@@ -248,6 +248,7 @@ class Manager:
             update = app_update.read_status()
             return {'updates': update_settings(self.settings.get('updates')),
                     'update_status': update, 'app_version': app_update.installed_version(),
+                    'display_ready': self.display is not None,
                     'cec_enabled': self.settings.get('cec_enabled', True), 'cec_status': self.cec_status,
                     'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
                     'available': True, 'mode': self.runtime_mode or self.settings['mode'],

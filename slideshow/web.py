@@ -85,7 +85,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
                 return jsonify(error='Reload this page before making changes.'), 403
         admin_signed_in = time.time() - session.get('admin_since', 0) <= 3600 and session.get('auth_version') == network.get('auth_version')
         local_player = (request.environ.get('slideshow.local_playback') is True and request.method == 'GET'
-                        and (request.path == '/api/state' or request.path.startswith('/api/frame/')))
+                        and (request.path in ('/api/state', '/api/health') or request.path.startswith('/api/frame/')))
         if (request.method in ('POST', 'PUT', 'DELETE', 'PATCH')
                 and request.path.startswith('/api/') and not request.path.startswith(('/api/admin/', '/api/photo-access/'))
                 and request.path != '/api/control'
@@ -314,6 +314,13 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         except Exception:
             target.unlink(missing_ok=True)
             raise
+
+    @app.get('/api/health')
+    def private_health():
+        if request.environ.get('slideshow.local_playback') is not True:
+            return jsonify(error='Health checks are private to this device.'), 403
+        network = admin.status()
+        return jsonify(ok=network.get('available') is True and network.get('display_ready') is True)
 
     @app.get('/api/state')
     def state():
