@@ -2,11 +2,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import random
 import threading
 import time
 
 EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+from .playlist import ShufflePlaylist
+
 MAX_IMAGES = 10000
 
 
@@ -30,6 +31,7 @@ class Library:
         self.images = []
         self.folders = []
         self.current = None
+        self.shuffle_playlist = None
         self.playing = True  # Always play after boot; pause is a live control.
         self.deadline = time.monotonic() + self.settings['seconds']
         self.error = ''
@@ -113,8 +115,22 @@ class Library:
                     break
             with self.lock:
                 self.folders, self.images = sorted(set(folders)), images
-                if self.current not in {i['id'] for i in images}:
-                    self.current = images[0]['id'] if images else None
+                old_current = self.current
+                ids = [image['id'] for image in images]
+                if self.settings['shuffle']:
+                    if self.shuffle_playlist is None:
+                        self.shuffle_playlist = ShufflePlaylist(ids, self.current)
+                    else:
+                        self.shuffle_playlist.sync(ids)
+                    if self.current not in ids:
+                        self.current = self.shuffle_playlist.next()
+                    elif self.shuffle_playlist.cursor < 0 or self.shuffle_playlist.history[self.shuffle_playlist.cursor] != self.current:
+                        self.shuffle_playlist.select(self.current)
+                else:
+                    self.shuffle_playlist = None
+                    if self.current not in ids:
+                        self.current = ids[0] if ids else None
+                if self.current != old_current:
                     self.deadline = time.monotonic() + self.settings['seconds']
 
     def find(self, image_id):
@@ -143,8 +159,11 @@ class Library:
                 raise ValueError('Cannot delete this photo. Check that the storage is connected and writable.') from error
             index = next(i for i, photo in enumerate(self.images) if photo['id'] == image_id)
             self.images.pop(index)
+            if self.settings['shuffle'] and self.shuffle_playlist is not None:
+                self.shuffle_playlist.sync([photo['id'] for photo in self.images])
             if self.current == image_id:
-                self.current = self.images[index % len(self.images)]['id'] if self.images else None
+                self.current = (self.shuffle_playlist.next() if self.settings['shuffle'] and self.shuffle_playlist is not None
+                                else self.images[index % len(self.images)]['id'] if self.images else None)
                 self.deadline = time.monotonic() + self.settings['seconds']
             if image_id in self.settings['rotations']:
                 del self.settings['rotations'][image_id]
@@ -159,8 +178,12 @@ class Library:
             if not ids:
                 return
             index = ids.index(self.current) if self.current in ids else 0
-            if self.settings['shuffle'] and direction == 1 and len(ids) > 1:
-                self.current = random.choice([i for i in ids if i != self.current])
+            if self.settings['shuffle']:
+                if self.shuffle_playlist is None:
+                    self.shuffle_playlist = ShufflePlaylist(ids, self.current)
+                else:
+                    self.shuffle_playlist.sync(ids)
+                self.current = self.shuffle_playlist.next() if direction == 1 else self.shuffle_playlist.previous()
             else:
                 self.current = ids[(index + direction) % len(ids)]
             self.deadline = time.monotonic() + self.settings['seconds']
@@ -214,6 +237,10 @@ class Library:
                 self.advance(1 if action == 'next' else -1)
             elif action == 'show':
                 self.current = self.find(payload.get('id'))['id']
+                if self.settings['shuffle']:
+                    if self.shuffle_playlist is None:
+                        self.shuffle_playlist = ShufflePlaylist([image['id'] for image in self.images])
+                    self.shuffle_playlist.select(self.current)
                 self.playing = False  # Hold a chosen image until Play is pressed.
             elif action == 'rotate':
                 item = self.find(payload.get('id') or self.current)

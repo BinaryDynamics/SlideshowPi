@@ -305,3 +305,9 @@ Preloaded SD images belong in the application photo folder, not the boot partiti
 A failed home-network join restores the hotspot when Wi-Fi hardware is present. If a connected home network disappears, the monitor checks both Wi-Fi link state and IPv4 addressing; a stale DHCP address does not prevent fallback after the 90-second grace period. No Wi-Fi hardware still uses offline mode.
 
 Releases v0.1.0-beta.11 and v0.1.0-beta.12 contained a hotspot startup script with Windows CRLF line endings in the ZIP/Windows SD payload. Bash can reject this with an `invalid option name` error, preventing the hotspot from starting. Update to v0.1.0-beta.13 or later. New installation packages and SD preparation/update tools normalize shell scripts to Unix LF line endings. The SD updater also repairs verified older CRLF shell payloads when deploying them. Photos and network credentials are preserved.
+
+### Shuffle without repeats
+
+Shuffle uses a randomized playlist rather than choosing an independent random photo at every transition. Each available photo appears once per automatic cycle. The next cycle is reshuffled and, with at least two photos, starts with a different photo from the one that just finished. Previous follows actual playback history; Next retraces that history before continuing the remaining sequence. History is limited to the last 20,000 displays.
+
+Uploads and newly mounted USB photos join the remaining shuffled sequence. Rescanning unchanged storage does not restart the cycle. Deleted or disconnected photos leave the sequence and history; moves/renames preserve their position. Manually choosing Show can intentionally repeat a photo and pauses playback; if it was still pending, it is consumed from this cycle. Restarting the app creates a fresh cycle. Distinct files containing the same picture are still treated as distinct photos.

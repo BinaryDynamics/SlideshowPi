@@ -138,22 +138,30 @@ class Files:
             rotations = lib.settings['rotations']
             removed_ids = {lib.image_id(p) for p, _, directory in entries if not directory}
             old_current = lib.current
+            changes = {}
             for path, _, directory in entries:
                 if directory:
                     continue
                 old = lib.image_id(path)
                 new = lib.image_id(target if path == source else target / path.relative_to(source)) if target else None
+                if not copy and new:
+                    changes[old] = new
                 if old in rotations:
                     value = rotations[old]
                     if not copy: rotations.pop(old)
                     if new: rotations[new] = value
                 if not copy and lib.current == old:
                     lib.current = new
+            if lib.shuffle_playlist is not None and not copy:
+                lib.shuffle_playlist.remap(changes)
             if not copy and target is None and old_current in removed_ids:
                 ids = [image['id'] for image in lib.images]
                 start = ids.index(old_current) if old_current in ids else 0
                 lib.current = next((ids[(start + offset) % len(ids)] for offset in range(1, len(ids) + 1)
                                     if ids[(start + offset) % len(ids)] not in removed_ids), None)
+                if lib.settings['shuffle'] and lib.shuffle_playlist is not None:
+                    lib.shuffle_playlist.sync([item for item in ids if item not in removed_ids])
+                    lib.current = lib.shuffle_playlist.next()
             if not copy:
                 folders = []
                 for folder in lib.settings['folders']:
