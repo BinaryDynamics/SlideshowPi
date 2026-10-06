@@ -219,3 +219,50 @@ def test_destination_safety_skips_existing_photo_and_rejects_low_space(appliance
     with pytest.raises(ValueError, match='free space'):
         files.operation('copy', files.entry(source), str(destination))
     assert source.exists() and not list(destination.glob('.transfer-*'))
+
+
+def test_file_rotations_work_outside_playlist_preserve_original_and_survive_restart(appliance):
+    client, lib, headers = appliance
+    folder = lib.sd / 'Other'; folder.mkdir()
+    path = folder / 'portrait.jpg'
+    Image.new('RGB', (40, 20), 'green').save(path)
+    lib.update({'folders': [str(lib.sd)], 'recursive': False})
+    assert not lib.images
+    original = path.read_bytes()
+    item = client.get('/api/files', query_string={'path': str(folder)}).json['items'][0]
+    result = client.post('/api/files/rotate', headers=headers, json={'items': [item], 'degrees': -90})
+    assert result.status_code == 200 and result.json['count'] == 1
+    assert path.read_bytes() == original
+    preview = client.get('/api/files/thumbnail', query_string={'path': str(path)})
+    assert Image.open(BytesIO(preview.data)).size == (20, 40)
+    assert client.get('/api/files', query_string={'path': str(folder)}).json['items'][0]['rotation'] == 270
+    from slideshow.core import Library
+    assert Library(lib.data, lib.usb).settings['rotations'][lib.image_id(path)] == 270
+    assert client.post('/api/files/rotate', headers=headers, json={'items': [item], 'degrees': 90}).status_code == 200
+    assert lib.settings['rotations'][lib.image_id(path)] == 0
+
+
+def test_bulk_rotation_validates_whole_selection_before_saving(appliance):
+    client, lib, headers = appliance
+    for filename in ['a.jpg', 'b.jpg']: upload(client, lib, headers, filename)
+    items = client.get('/api/files').json['items']
+    assert client.post('/api/files/rotate', headers=headers, json={'items': items, 'degrees': 90}).status_code == 200
+    assert all(lib.settings['rotations'][lib.image_id(Path(item['path']))] == 90 for item in items)
+    saved = lib.config_file.read_bytes()
+    for payload in [{'items': items, 'degrees': True}, {'items': items, 'degrees': 180},
+                    {'items': items + [items[0]], 'degrees': -90},
+                    {'items': [items[0], dict(items[1], stamp='stale')], 'degrees': -90}]:
+        assert client.post('/api/files/rotate', headers=headers, json=payload).status_code == 400
+        assert lib.config_file.read_bytes() == saved
+    folder = lib.sd / 'Folder'; folder.mkdir()
+    assert client.post('/api/files/rotate', headers=headers, json={'items': [Files(lib).entry(folder)], 'degrees': 90}).status_code == 400
+
+
+def test_file_rotation_requires_photo_login_and_csrf(protected):
+    client, m, root, lib, headers = protected
+    item = Files(lib).entry(Path(lib.images[0]['path']))
+    assert client.post('/api/files/rotate', headers=headers, json={'items': [item], 'degrees': 90}).status_code == 401
+    client.post('/api/photo-access/login', headers=headers, json={'password': 'test-photo-password'})
+    assert client.post('/api/files/rotate', json={'items': [item], 'degrees': 90}).status_code == 403
+    assert client.post('/api/files/rotate', headers=headers, json={'items': [item], 'degrees': 90}).status_code == 200
+    assert client.get('/api/state').json['current']['rotation'] == 90

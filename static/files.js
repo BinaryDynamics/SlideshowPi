@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="slideshow-token"]').content;
 let listing, page = 0, selected = new Map(), clipboard = [], lastIndex = null;
-let destinationPath, destinationAction, jobRunning = false, jobId = '', loading = false;
+let destinationPath, destinationAction, jobRunning = false, jobId = '', loading = false, rotating = false;
 let uploadQueue = [], uploading = false, cancelUploads = false, activeXHR;
 function notice(message, error = false) { $('notice').textContent = message; $('notice').classList.toggle('error', error); }
 function guarded(fn) { return async event => { event?.preventDefault(); try { await fn(event); } catch (e) { notice(e.message, true); } }; }
@@ -18,11 +18,14 @@ function size(bytes) { return bytes == null ? 'Folder' : bytes < 1048576 ? `${Ma
 function crumbs(container, data, navigate) { container.replaceChildren(); for (const item of data.breadcrumbs) container.append(button(item.name, () => navigate(item.path))); }
 function selectionChanged() {
   $('selection').textContent = `${selected.size} selected`;
-  for (const id of ['move', 'copy', 'cut', 'delete']) $(id).disabled = !selected.size || jobRunning;
-  $('rename').disabled = selected.size !== 1 || jobRunning;
+  for (const id of ['move', 'copy', 'cut', 'delete']) $(id).disabled = !selected.size || jobRunning || rotating;
+  $('rename').disabled = selected.size !== 1 || jobRunning || rotating;
   $('download').disabled = selected.size !== 1 || [...selected.values()][0]?.folder;
   $('paste').disabled = !clipboard.length || jobRunning;
-  $('create').disabled = jobRunning;
+  $('create').disabled = jobRunning || rotating;
+  const photosOnly = selected.size > 0 && [...selected.values()].every(item => !item.folder);
+  for (const id of ['rotate-left', 'rotate-right']) $(id).disabled = !photosOnly || jobRunning || rotating;
+  for (const control of $('file-list').querySelectorAll('[data-rotation]')) control.disabled = jobRunning || rotating;
   $('select-all').checked = !!listing?.items.length && selected.size === listing.items.length;
   for (const row of $('file-list').children) { if (!row.dataset.path) continue; const active = selected.has(row.dataset.path); row.classList.toggle('selected', active); row.querySelector('input').checked = active; }
 }
@@ -42,7 +45,7 @@ async function load(path = listing?.path, newPage = 0) {
     $('file-list').replaceChildren();
     data.items.forEach((item, index) => {
       const row = document.createElement('article'); row.className = 'file-entry'; row.dataset.path = item.path;
-      if (!item.folder) { const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; img.src = '/api/files/thumbnail?path=' + encodeURIComponent(item.path) + '&v=' + encodeURIComponent(item.stamp); row.append(img); }
+      if (!item.folder) { const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; img.src = '/api/files/thumbnail?path=' + encodeURIComponent(item.path) + '&v=' + encodeURIComponent(item.stamp + ':' + (item.rotation || 0)); row.append(img); }
       const label = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox';
       check.onclick = event => {
         const enabled = check.checked;
@@ -52,6 +55,14 @@ async function load(path = listing?.path, newPage = 0) {
       };
       label.append(check, document.createTextNode(item.name)); row.append(label);
       if (item.folder) row.append(button('Open folder →', () => load(item.path)));
+      else {
+        const rotations = document.createElement('div'); rotations.className = 'file-rotate';
+        for (const [label, degrees, direction] of [['↶ Left', -90, 'left'], ['Right ↷', 90, 'right']]) {
+          const control = button(label, () => rotatePhotos([item], degrees));
+          control.dataset.rotation = String(degrees); control.setAttribute('aria-label', 'Rotate ' + item.name + ' ' + direction); rotations.append(control);
+        }
+        row.append(rotations);
+      }
       const details = document.createElement('small'); details.textContent = size(item.size) + ' · ' + new Date(item.modified * 1000).toLocaleDateString(); row.append(details);
       $('file-list').append(row);
     });
@@ -72,6 +83,23 @@ $('download').onclick = () => { const item = [...selected.values()][0]; if (item
 async function start(action, extra = {}, items = [...selected.values()]) {
   const result = await api('files/action', {action, items, ...extra}); jobId = result.id; jobRunning = true; selectionChanged(); await pollJob();
 }
+async function rotatePhotos(items, degrees) {
+  if (rotating || jobRunning) return;
+  rotating = true; selectionChanged();
+  try {
+    const result = await api('files/rotate', {items, degrees});
+    const paths = new Set(items.map(item => item.path));
+    for (const item of listing.items) if (paths.has(item.path)) {
+      item.rotation = ((item.rotation || 0) + degrees + 360) % 360;
+      const row = [...$('file-list').children].find(row => row.dataset.path === item.path);
+      const image = row?.querySelector('img');
+      if (image) image.src = '/api/files/thumbnail?path=' + encodeURIComponent(item.path) + '&v=' + encodeURIComponent(item.stamp + ':' + item.rotation);
+    }
+    notice(`${result.count} photo(s) rotated ${degrees < 0 ? 'left' : 'right'}.`);
+  } finally { rotating = false; selectionChanged(); }
+}
+$('rotate-left').onclick = guarded(() => rotatePhotos([...selected.values()], -90));
+$('rotate-right').onclick = guarded(() => rotatePhotos([...selected.values()], 90));
 $('delete').onclick = guarded(async () => { const items = [...selected.values()]; if (!confirm(`Permanently delete ${items.length} selected file(s) / folder(s)? Folders include all their photos. This cannot be undone.`)) return; await start('delete'); });
 $('rename').onclick = guarded(async () => { const item = [...selected.values()][0]; const name = prompt('New name (keep the photo extension)', item.name); if (name && name !== item.name) await start('rename', {name}); });
 $('cut').onclick = () => { clipboard = [...selected.values()]; selectionChanged(); notice(`${clipboard.length} item(s) cut. Open the destination folder and choose Paste here.`); };

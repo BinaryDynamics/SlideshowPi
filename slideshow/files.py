@@ -52,7 +52,8 @@ class Files:
     def entry(self, path):
         return dict(path=str(path), name=path.name, folder=path.is_dir(),
                     stamp=stamp(path), size=path.stat().st_size if path.is_file() else None,
-                    modified=path.stat().st_mtime)
+                    modified=path.stat().st_mtime,
+                    rotation=self.library.settings['rotations'].get(self.library.image_id(path), 0) if path.is_file() else 0)
 
     def listing(self, value=None, page=0):
         roots = self.roots()
@@ -94,6 +95,27 @@ class Files:
         if not path.is_dir() and (not path.is_file() or path.suffix.lower() not in EXTENSIONS):
             raise ValueError('Only photo files and photo folders can be managed.')
         return path
+
+    def rotate(self, entries, degrees):
+        if type(degrees) is not int or degrees not in (-90, 90):
+            raise ValueError('Choose a 90-degree left or right rotation.')
+        if not isinstance(entries, list) or not 1 <= len(entries) <= 100:
+            raise ValueError('Select between 1 and 100 photos.')
+        lib = self.library
+        with lib.scan_lock, lib.lock:
+            paths = [self.source(entry) for entry in entries]
+            if any(not path.is_file() for path in paths) or len(set(paths)) != len(paths):
+                raise ValueError('Select photos only, without duplicate entries.')
+            previous = dict(lib.settings['rotations'])
+            for path in paths:
+                image_id = lib.image_id(path)
+                lib.settings['rotations'][image_id] = (previous.get(image_id, 0) + degrees) % 360
+            try:
+                lib.save()
+            except Exception:
+                lib.settings['rotations'] = previous
+                raise
+        return len(paths)
 
     def snapshot(self, path):
         entries = [(path, stamp(path), path.is_dir())]

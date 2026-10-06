@@ -153,6 +153,14 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     def file_action():
         return jsonify(files.start(request.get_json(silent=True))), 202
 
+    @app.post('/api/files/rotate')
+    @storage_mutation
+    def file_rotate():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict): raise ValueError('Choose photos and a rotation direction.')
+        count = files.rotate(payload.get('items'), payload.get('degrees'))
+        return jsonify(ok=True, count=count)
+
     @app.get('/api/files/job')
     def file_job():
         return jsonify(job=files.status())
