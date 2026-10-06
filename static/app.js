@@ -26,11 +26,7 @@ function populateFolders(next) {
     label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / ')));
     $('folder-list').append(label);
   }
-  for (const id of ['destination', 'parent']) {
-    const selected = $(id).value;
-    $(id).replaceChildren(...next.folders.map(path => { const option = document.createElement('option'); option.value = path; option.textContent = path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '); return option; }));
-    if (next.folders.includes(selected)) $(id).value = selected;
-  }
+
 }
 async function loadGallery() {
   const result = await api('images?page=' + page + '&q=' + encodeURIComponent(search));
@@ -89,32 +85,6 @@ $('rotate-right').onclick = guarded(() => control('rotate', undefined, 90));
 $('playback-form').onsubmit = guarded(async () => { await api('settings', {seconds: Number($('seconds').value), fit: $('fit').value, shuffle: $('shuffle').checked, recursive: $('recursive').checked}); notice('Playback settings saved.'); await poll(); });
 $('folders-form').onsubmit = guarded(async () => { await api('settings', {folders: [...$('folder-list').querySelectorAll('input:checked')].map(i => i.value)}); page = 0; galleryKey = ''; notice('Photo folders saved.'); await poll(); });
 $('rescan').onclick = guarded(async () => { await api('rescan', {}); galleryKey = ''; await poll(); notice('Storage refreshed.'); });
-$('new-folder-form').onsubmit = guarded(async () => { const result = await api('folders', {parent: $('parent').value, name: $('folder-name').value}); await poll(); $('destination').value = result.path; $('folder-name').value = ''; notice('Folder created. Select it under Photo folders to include it in playback.'); });
-function upload(file, folder, progress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest(), data = new FormData(); data.append('folder', folder); data.append('image', file);
-    xhr.open('POST', '/api/upload'); xhr.setRequestHeader('X-Slideshow-Token', token);
-    xhr.upload.onprogress = event => { if (event.lengthComputable) progress(event.loaded / event.total); };
-    xhr.onerror = () => reject(new Error('Connection lost during upload.'));
-    xhr.onload = () => { try { const result = JSON.parse(xhr.responseText); xhr.status >= 200 && xhr.status < 300 ? resolve(result) : reject(new Error(result.error || 'Upload failed.')); } catch { reject(new Error('Upload failed.')); } };
-    xhr.send(data);
-  });
-}
-$('upload-form').onsubmit = guarded(async () => {
-  const files = [...$('photos').files], folder = $('destination').value;
-  $('upload-button').disabled = true; $('progress').hidden = false;
-  let done = 0, failures = [];
-  try {
-    for (const file of files) {
-      $('upload-status').textContent = `Uploading ${done + 1} of ${files.length}: ${file.name}`;
-      try { if (file.size > 32 * 1024 * 1024 - 4096) throw new Error('Larger than upload limit.'); await upload(file, folder, p => { $('progress').value = 100 * (done + p) / files.length; }); }
-      catch (e) { failures.push(`${file.name}: ${e.message}`); }
-      done++; $('progress').value = 100 * done / files.length;
-    }
-    $('upload-status').textContent = `${done - failures.length} uploaded. ${failures.join(' ')}`;
-    notice('Upload complete. Make sure the destination folder is selected for playback.', failures.length > 0); galleryKey = ''; await poll();
-  } finally { $('upload-button').disabled = false; }
-});
 $('page-back').onclick = guarded(async () => { page = Math.max(0, page - 1); await loadGallery(); });
 $('page-next').onclick = guarded(async () => { page++; await loadGallery(); });
 let searchTimer;

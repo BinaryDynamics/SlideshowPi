@@ -264,7 +264,7 @@ Use **Delete** below a photo in the web photo library, then confirm its filename
 
 ### Files and folder management
 
-Open **Files** from the slideshow page (or visit `/files`). The sidebar lists SD photo storage and mounted USB drives. Open folders and use breadcrumbs or Up to navigate. Switch between thumbnail grid and list view. Check individual entries, Shift-click a range on a computer, or select the current page (100 entries maximum per operation).
+Choose the prominent **Add / Manage Photos** button at the top of the slideshow page (or visit `/files`). Uploads and folder creation live on the Files page; the slideshow page keeps its live controls, settings, folder selection and photo library. The sidebar lists SD photo storage and mounted USB drives. Open folders and use breadcrumbs or Up to navigate. Switch between thumbnail grid and list view. Check individual entries, Shift-click a range on a computer, or select the current page (100 entries maximum per operation).
 
 - **Move to… / Copy to…**: browse to a destination, then choose Keep both or Skip for name conflicts. Keep both adds a number; existing entries are never silently overwritten. Folders are copied as a whole rather than merged.
 - **Cut / Paste here**: select entries, choose Cut, navigate to a folder, then Paste here. This clipboard stays in the current browser tab; paste keeps both on conflicts.
