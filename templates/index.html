@@ -9,7 +9,7 @@
 <body>
 <header><div><span class="eyebrow">YOUR PHOTOS. ON THE BIG SCREEN.</span><h1>SlideshowPi</h1></div><span id="connection" class="badge">Connecting…</span></header>
 <main>
-  <p class="hint"><a href="/admin">Device administration</a>{% if photo_protected %} · <button id="photo-logout">Sign out of photos</button>{% endif %}</p>
+  <p class="hint"><a href="/files">Files</a> · <a href="/admin">Device administration</a>{% if photo_protected %} · <button id="photo-logout">Sign out of photos</button>{% endif %}</p>
   <p id="notice" role="status" aria-live="polite"></p>
   <section class="card live">
     <div class="preview"><img id="current-preview" alt="Current TV image" hidden><p id="empty">Upload photos and select a folder to begin.</p></div>
@@ -43,5 +43,5 @@
   <section class="card"><div class="library-heading"><div><h2>Photo library</h2><p class="hint">Tap Show to put a specific photo on the TV. Delete permanently removes a photo from SD or USB storage after confirmation.</p></div><input id="search" type="search" placeholder="Search filenames" aria-label="Search filenames"></div>
     <div id="gallery" class="gallery"></div><div class="pagination"><button id="page-back">← Back</button><span id="page-label"></span><button id="page-next">More →</button></div>
   </section>
-</main><footer>SlideshowPi · Works offline · <a href="/admin">Device administration</a></footer>
+</main><footer>SlideshowPi · Works offline · <a href="/files">Files</a> · <a href="/admin">Device administration</a></footer>
 </body></html>

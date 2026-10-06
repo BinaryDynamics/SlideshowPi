@@ -11,7 +11,7 @@ form.onsubmit = async event => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Sign-in failed.');
     document.getElementById('photo-password').value = '';
-    location.replace('/');
+    location.replace(location.pathname === '/files' ? '/files' : '/');
   } catch (error) { notice.textContent = error.message; notice.classList.add('error'); }
   finally { button.disabled = false; }
 };

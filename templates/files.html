@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="slideshow-token" content="{{ token }}"><title>Files · SlideshowPi</title>
+<link rel="stylesheet" href="/static/style.css"><script defer src="/static/files.js"></script></head>
+<body><header><div><span class="eyebrow">SLIDESHOWPI</span><h1>Files</h1></div><nav><a href="/">Slideshow</a> · <a href="/admin">Admin</a></nav></header>
+<main><p id="notice" role="status" aria-live="polite"></p>
+<div class="file-layout"><aside class="card"><h2>Storage</h2><div id="roots"></div><p class="hint">SD photos and connected USB drives. Select a folder to browse its contents.</p></aside>
+<section class="card file-content"><nav id="breadcrumbs" aria-label="Folder path"></nav>
+<div class="buttons"><button id="up">↑ Up</button><button id="refresh">Refresh</button><button id="create">New folder</button><button id="include">Use this folder in slideshow</button><button id="view">List view</button></div>
+<div class="buttons"><label class="check"><input id="select-all" type="checkbox">Select this page</label><span id="selection" aria-live="polite">0 selected</span>
+<button id="move" disabled>Move to…</button><button id="copy" disabled>Copy to…</button><button id="cut" disabled>Cut</button><button id="paste" disabled>Paste here</button><button id="rename" disabled>Rename</button><button id="download" disabled>Download</button><button id="delete" disabled>Delete</button></div>
+<div id="file-list" class="file-grid"></div><p id="ignored" class="hint"></p>
+<div class="pagination"><button id="back">← Back</button><span id="page-label"></span><button id="next">More →</button></div>
+</section></div>
+<section class="card"><h2 id="upload-heading">Upload to this folder</h2><p id="upload-destination" class="hint"></p>
+<div id="drop-zone" class="drop-zone"><p>Drop photos here, or choose files below.</p><div class="columns"><label>Choose photos<input id="uploads" type="file" multiple accept="image/jpeg,image/png,image/webp,image/bmp"></label><label>Choose a folder<input id="folder-upload" type="file" multiple webkitdirectory></label></div></div>
+<p class="hint">JPEG, PNG, WebP and BMP; up to 32 MB and 24 megapixels per photo. Folder upload is available in supported browsers; dropped folders are not supported. Existing names are kept and uploads receive a new name.</p>
+<div class="buttons"><button id="cancel-uploads" disabled>Cancel uploads</button><button id="retry-uploads" disabled>Retry failed / cancelled</button></div><ol id="queue" class="upload-queue"></ol></section>
+<section id="job-card" class="card" hidden><h2>File operation</h2><p id="job-summary" role="status" aria-live="polite"></p><progress id="job-progress" max="100" value="0"></progress><ul id="job-results"></ul><p class="hint">Operations continue if this page is closed. Keep the Pi powered and USB drives connected until finished.</p></section>
+</main><dialog id="destination"><h2 id="destination-title">Choose destination</h2><div id="destination-roots" class="buttons"></div><nav id="destination-path" aria-label="Destination path"></nav><div id="destination-folders" class="folder-picker"></div>
+<label for="conflict">If the name already exists</label><select id="conflict"><option value="keep-both">Keep both (add a number)</option><option value="skip">Skip the item</option></select><div class="buttons"><button id="destination-confirm" class="primary">Use this folder</button><button id="destination-cancel">Cancel</button></div></dialog>
+<footer>SlideshowPi · Works offline · <a href="/">Slideshow controls</a></footer></body></html>

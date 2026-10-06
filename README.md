@@ -7,7 +7,8 @@ Turn a Raspberry Pi Zero W into a small HDMI photo slideshow appliance. It start
 - Select multiple SD-card or USB folders, with optional subfolders.
 - Upload JPEG, PNG, WebP or BMP; originals are preserved.
 - Play, pause, previous/next, select a specific photo, rotate, shuffle, and set speed.
-- Delete photos from SD or mounted USB storage with confirmation.
+- File manager with folder navigation, grid/list views, multiple selection, move/copy, cut/paste, rename, download and confirmed deletion.
+- Sequential upload queue with progress, cancel/retry, drag-and-drop photos and optional folder uploads.
 - Fit the whole photo or fill the screen by cropping; automatic screen-size detection.
 - Full HD rendering, Lanczos resizing, high-quality JPEG output and smooth scaling.
 - Small network mode, Wi-Fi name and IP overlay in the top-left corner of the TV.
@@ -24,6 +25,10 @@ Examples from the actual web interface, using original sample illustrations and 
 **Live slideshow controls** — preview the current photo, play/pause, move between photos and rotate in either direction.
 
 ![SlideshowPi live slideshow controls](docs/screenshots/photo-overview.jpg)
+
+**Files** — browse SD and USB folders, select multiple photos, move or copy them, and upload with a queue.
+
+![SlideshowPi file manager](docs/screenshots/file-manager.jpg)
 
 **Photo library** — select a specific photo and rotate each thumbnail clockwise or anticlockwise.
 
@@ -256,3 +261,18 @@ Admin shows whether CEC is ready, waiting for HDMI, or unavailable. Missing or u
 ### Deleting photos
 
 Use **Delete** below a photo in the web photo library, then confirm its filename. This permanently removes the original from its SD or USB folder; it cannot be undone. Read-only or disconnected storage is rejected. Browser password protection, when enabled, also protects deletion. If the current photo is deleted, the TV moves to the next available photo while keeping its play/pause state; deleting the last photo shows the empty slideshow screen. Refresh the library if a file has changed since the thumbnail loaded.
+
+### Files and folder management
+
+Open **Files** from the slideshow page (or visit `/files`). The sidebar lists SD photo storage and mounted USB drives. Open folders and use breadcrumbs or Up to navigate. Switch between thumbnail grid and list view. Check individual entries, Shift-click a range on a computer, or select the current page (100 entries maximum per operation).
+
+- **Move to… / Copy to…**: browse to a destination, then choose Keep both or Skip for name conflicts. Keep both adds a number; existing entries are never silently overwritten. Folders are copied as a whole rather than merged.
+- **Cut / Paste here**: select entries, choose Cut, navigate to a folder, then Paste here. This clipboard stays in the current browser tab; paste keeps both on conflicts.
+- **New folder / Rename / Delete**: manage photos and photo folders. Deletion asks for confirmation and permanently removes the original files. Storage roots cannot be moved or deleted. Folders containing hidden, linked or non-photo entries are refused to prevent deleting unrelated data.
+- **Download**: select a single photo to download its original. Rotation remains a display setting; the downloaded file is unchanged.
+- **Use this folder in slideshow**: add the open folder to playback without replacing the other selected folders. Existing slideshow settings and image controls remain on the Slideshow page.
+- **Upload**: choose multiple photos or drop files into the upload area. Supported browsers can use Choose a folder to preserve its subfolder structure. Dropped folders are not supported. The queue sends one photo at a time, shows progress/errors, and offers Cancel and Retry failed / cancelled. The destination is captured when files are queued, so browsing elsewhere does not redirect pending uploads. Cancelling interrupts browser uploads; a file already accepted by the server may still appear. Refresh before retrying to avoid duplicate uploads.
+
+Moves and renames preserve saved rotations and update selected slideshow folders. Same-filesystem moves use a rename. Copies and moves between filesystems verify file contents with SHA-256 before completing; a cross-drive move removes originals only after verification. Missing, changed, linked or read-only entries are rejected. Operations run in the background; progress appears below the upload section and survives closing/reopening the page while the server remains running. Keep USB drives connected and the Pi powered until an operation finishes. Jobs are not resumed after a reboot or server restart; refresh storage after an interruption. A batch can finish partially; its results identify failed/skipped entries.
+
+The browser photo password, when enabled, protects the file manager and its APIs. Only photo storage is accessible; system/configuration files are outside its scope. Folder contents are loaded in pages, thumbnail requests are lazy, and transfers use bounded memory to suit the original Pi Zero W. Folder operations are limited to 20,000 entries; upload queues to 1,000 photos. Uploads retain the existing 32 MB / 24 megapixel limit. Conflicts currently support Keep both and Skip; replacing originals and drag-and-drop moves are not included.

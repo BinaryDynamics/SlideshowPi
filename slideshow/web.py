@@ -1,4 +1,5 @@
 from io import BytesIO
+from functools import wraps
 import math
 import os
 from pathlib import Path
@@ -48,6 +49,9 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     library = Library(data or os.environ.get('SLIDESHOW_DATA', '/var/lib/pi-slideshow'),
                       usb or os.environ.get('SLIDESHOW_USB', '/media/slideshow'))
     app.extensions['library'] = library
+    from .files import Files, name as file_name
+    files = Files(library)
+    app.extensions['files'] = files
     token = secrets.token_urlsafe(32)
     frame_cache = [None, None]
 
@@ -79,14 +83,14 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         local_player = (request.environ.get('slideshow.local_playback') is True and request.method == 'GET'
                         and (request.path == '/api/state' or request.path.startswith('/api/frame/')))
         protected_api = request.path.startswith('/api/') and not request.path.startswith(('/api/admin/', '/api/photo-access/'))
-        if request.path == '/' or protected_api:
+        if request.path in ('/', '/files') or protected_api:
             if not network.get('available', True) and not local_player:
                 return jsonify(error='Photo access is temporarily unavailable. Please try again.'), 503
             if network.get('photo_access_enabled') and not admin_signed_in and not local_player:
                 valid_photo_session = (time.time() - session.get('photo_since', 0) <= 3600
                                        and session.get('photo_auth_version') == network.get('photo_auth_version'))
                 if not valid_photo_session:
-                    if request.path == '/':
+                    if request.path in ('/', '/files'):
                         return render_template('photo_login.html', token=token)
                     return jsonify(error='Sign in to manage or view photos.'), 401
         if request.path.startswith('/api/admin/') and request.path != '/api/admin/login':
@@ -123,6 +127,73 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.get('/')
     def index():
         return render_template('index.html', token=token, photo_protected=admin.status().get('photo_access_enabled', False))
+
+    @app.get('/files')
+    def files_page():
+        return render_template('files.html', token=token)
+
+    def storage_mutation(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            if not files.lock.acquire(blocking=False):
+                raise ValueError('A file operation is running. Wait for it to finish, then retry.')
+            try:
+                return function(*args, **kwargs)
+            finally:
+                files.lock.release()
+        return wrapped
+
+    @app.get('/api/files')
+    def file_listing():
+        try: page = int(request.args.get('page', '0'))
+        except ValueError: raise ValueError('Invalid page.') from None
+        return jsonify(files.listing(request.args.get('path'), page))
+
+    @app.post('/api/files/action')
+    def file_action():
+        return jsonify(files.start(request.get_json(silent=True))), 202
+
+    @app.get('/api/files/job')
+    def file_job():
+        return jsonify(job=files.status())
+
+    @app.post('/api/files/folder')
+    @storage_mutation
+    def file_folder():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict): raise ValueError('Choose a parent and folder name.')
+        parent = files.path(payload.get('parent'), directory=True)
+        target = parent / file_name(payload.get('name'))
+        target.mkdir()  # Never merge with an existing folder or link.
+        library.scan()
+        return jsonify(ok=True, path=str(target))
+
+    @app.get('/api/files/download')
+    def file_download():
+        path = files.path(request.args.get('path'))
+        if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+            raise ValueError('Choose a photo to download.')
+        return send_file(path, as_attachment=True, download_name=path.name)
+
+    @app.get('/api/files/thumbnail')
+    def file_thumbnail():
+        path = files.path(request.args.get('path'))
+        if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+            raise ValueError('Choose a photo to preview.')
+        try:
+            with DECODE_LOCK, open_image(path) as source:
+                source.draft('RGB', (240, 240))
+                source.thumbnail((240, 240), Image.Resampling.LANCZOS)
+                image = ImageOps.exif_transpose(source).convert('RGB')
+                with library.lock:
+                    angle = library.settings['rotations'].get(library.image_id(path), 0)
+                if angle: image = image.rotate(-angle, expand=True)
+                image.thumbnail((240, 160), Image.Resampling.LANCZOS)
+                output = BytesIO()
+                image.save(output, format='JPEG', quality=82)
+                return send_file(BytesIO(output.getvalue()), mimetype='image/jpeg')
+        except (UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+            raise ValueError('Cannot decode this photo.') from None
 
     @app.get('/admin')
     def admin_page():
@@ -265,12 +336,26 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         return jsonify(ok=True, path=str(target))
 
     @app.post('/api/upload')
+    @storage_mutation
     def upload():
         folder = library.allowed(request.form.get('folder', ''), directory=True)
         file = request.files.get('image')
         if file is None:
             raise ValueError('Choose an image to upload.')
-        name = secure_filename(file.filename or '')
+        relative = request.form.get('relative_path', '')
+        if relative:
+            parts = relative.split('/')
+            if len(parts) > 20 or len(parts) < 1:
+                raise ValueError('Folder upload is too deeply nested.')
+            for part in parts: file_name(part)
+            for part in parts[:-1]:
+                target_folder = folder / part
+                if target_folder.exists(): files.path(str(target_folder), directory=True)
+                else: target_folder.mkdir()
+                folder = target_folder
+            name = parts[-1]
+        else:
+            name = secure_filename(file.filename or '')
         if Path(name).suffix.lower() not in EXTENSIONS:
             raise ValueError('Use JPEG, PNG, WebP or BMP images.')
         if shutil.disk_usage(folder).free < 64 * 1024 * 1024:
