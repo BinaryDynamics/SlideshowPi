@@ -39,3 +39,7 @@ password = "" # When enabled, blank generates a unique password; custom: 12-128 
 # TV remote controls; requires HDMI-CEC enabled on the TV.
 [cec]
 enabled = true
+
+[updates]
+repository = "https://github.com/BinaryDynamics/SlideshowPi"
+include_prereleases = true

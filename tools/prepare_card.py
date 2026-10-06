@@ -31,7 +31,7 @@ def validate_setup(setup):
     ssid(setup.get('ssid'))
     password(setup.get('password'))
     result = {key: setup[key] for key in ('country', 'ssid', 'password')}
-    for key in ('admin_password', 'network_mode', 'home', 'hotspot_network', 'photo_access', 'photo_access_custom', 'playback', 'playback_custom', 'auto_folders_custom', 'cec_enabled', 'cec_custom'):
+    for key in ('admin_password', 'network_mode', 'home', 'hotspot_network', 'photo_access', 'photo_access_custom', 'playback', 'playback_custom', 'auto_folders_custom', 'cec_enabled', 'cec_custom', 'updates', 'updates_custom'):
         if key in setup:
             result[key] = setup[key]
     defaults = load_config(default_country=result['country'])
@@ -95,7 +95,7 @@ def prepare(card, setup):
                         ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     for script in (destination / 'deploy').rglob('*.sh'):
         script.write_bytes(script.read_bytes().replace(b'\r\n', b'\n'))
-    for filename in ('run.py', 'player.py', 'README.md'):
+    for filename in ('VERSION', 'run.py', 'player.py', 'README.md'):
         shutil.copy2(PROJECT / filename, destination / filename)
     with (destination / 'setup.json').open('w', encoding='utf8', newline='\n') as out:
         json.dump(setup, out, indent=2)

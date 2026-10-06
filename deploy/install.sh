@@ -22,7 +22,7 @@ install -d /opt/pi-slideshow /etc/pi-slideshow /media/slideshow
 install -d -o slideshow -g slideshow /var/lib/pi-slideshow /var/lib/pi-slideshow/photos
 if [[ $source_dir != /opt/pi-slideshow ]]; then
   cp -r "$source_dir/slideshow" "$source_dir/templates" "$source_dir/static" "$source_dir/deploy" /opt/pi-slideshow/
-  cp "$source_dir/run.py" "$source_dir/player.py" /opt/pi-slideshow/
+  cp "$source_dir/VERSION" "$source_dir/run.py" "$source_dir/player.py" /opt/pi-slideshow/
 fi
 find /opt/pi-slideshow -type d -name __pycache__ -prune -o -type f -name '*.sh' -exec chmod 755 {} +
 if [[ ! -f /etc/pi-slideshow/hostapd.conf ]]; then

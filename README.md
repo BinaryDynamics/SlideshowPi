@@ -45,6 +45,10 @@ Examples from the actual web interface, using original sample illustrations and 
 
 ![SlideshowPi example system diagnostics](docs/screenshots/system-diagnostics.jpg)
 
+**Application updates** — update from a configurable public GitHub repository or upload a release ZIP offline.
+
+![SlideshowPi application updates](docs/screenshots/app-updates.jpg)
+
 **Optional photo sign-in** — protect family photos and controls with a separate password.
 
 ![SlideshowPi optional photo management sign-in](docs/screenshots/photo-sign-in.jpg)
@@ -311,3 +315,30 @@ Releases v0.1.0-beta.11 and v0.1.0-beta.12 contained a hotspot startup script wi
 Shuffle uses a randomized playlist rather than choosing an independent random photo at every transition. Each available photo appears once per automatic cycle. The next cycle is reshuffled and, with at least two photos, starts with a different photo from the one that just finished. Previous follows actual playback history; Next retraces that history before continuing the remaining sequence. History is limited to the last 20,000 displays.
 
 Uploads and newly mounted USB photos join the remaining shuffled sequence. Rescanning unchanged storage does not restart the cycle. Deleted or disconnected photos leave the sequence and history; moves/renames preserve their position. Manually choosing Show can intentionally repeat a photo and pauses playback; if it was still pending, it is consumed from this cycle. Restarting the app creates a fresh cycle. Distinct files containing the same picture are still treated as distinct photos.
+
+### Updating from Admin (online or offline)
+
+Install update support once using this release's SD update or direct Pi installer. Older versions without **Application updates** on `/admin` cannot receive their first web update.
+
+1. Sign in to `/admin` and find **Application updates**. The installed version and update status appear here.
+2. For an online update, connect the Pi to a network with internet access. Choose **Check for updates**, then **Update from GitHub**. A phone having mobile data while connected to the Pi hotspot does not give the Pi internet access automatically.
+3. For an offline update, download **SlideshowPi.zip** from the chosen repository's release assets on another device. Connect to the Pi over its hotspot or normal network, choose the ZIP under **Offline release ZIP**, and select **Upload and install update**. The Pi needs no internet for this method.
+4. Keep power and storage connected. The slideshow and web services restart during installation. Reload the page and sign in again to see the result. A successful update keeps the previous app copy for rollback; failed startup checks automatically restore it. Interrupted activation is recovered by a boot service before the slideshow services start.
+
+The default source is `https://github.com/BinaryDynamics/SlideshowPi`. To use a fork, enter its public GitHub repository URL and save it in Admin. The same settings are available in your private setup file:
+
+```toml
+[updates]
+repository = "https://github.com/BinaryDynamics/SlideshowPi"
+include_prereleases = true
+```
+
+Prereleases are included by default because current SlideshowPi releases are betas. If disabled, only stable releases are considered. The updater chooses the most recently published eligible release among the latest 100 releases. It downloads that release's **SlideshowPi.zip** asset; GitHub's automatically generated source-code ZIP is not an update package. Private repositories/GitHub tokens are not supported. Check failures or interrupted downloads leave the application unchanged. Reinstalling the same release is allowed.
+
+Fork maintainers: update `VERSION` and run `python tools/package.py`, then attach `dist/SlideshowPi.zip` to a published GitHub release. The packager generates `release.json` with the version, update format, dependency-set contract and SHA-256 file checksums. Older ZIPs without this manifest are rejected. Update uploads are limited to 64 MB, unpacked contents to 128 MB, individual entries to 8 MB and packages to 2,000 entries. At least 192 MB of free staging space is required. ZIP paths, links, duplicates, required files, checksums and Python syntax are checked before activation. An unprivileged import check and service/HTTP startup check run before accepting the update.
+
+Only install code from repositories and packages you trust. Manifest checks detect corruption and unsafe archive structure; they are not a publisher signature. The repository source determines the application code that will run, including the root administration broker. GitHub downloads use HTTPS and verify the asset digest when supplied by GitHub.
+
+Application updates preserve `/var/lib/pi-slideshow` photos/settings, mounted USB contents, `/etc/pi-slideshow` credentials/network configuration and existing systemd/Xorg/HDMI settings. They do not run package installers or update Raspberry Pi OS, dependencies or installed systemd unit definitions. Changes requiring those must use the direct installer or an appropriate SD maintenance update; keep `dependency_set = 1` only while the runtime dependency contract is unchanged. Update staging/status/rollback data live in `/var/lib/pi-slideshow-updates`, outside photo storage. Only the most recent successful rollback copy is retained. Active file-management jobs block update installation, and photo/storage mutations are paused while an update runs. Files already being uploaded when an update is requested may still be interrupted; finish uploads before updating.
+
+If troubleshooting is needed, inspect `sudo journalctl -u pi-slideshow-update -u pi-slideshow-update-recovery -b`. Automatic tests cover package validation and mocked activation/rollback; real Pi service restarts and power-interruption recovery still need hardware verification.

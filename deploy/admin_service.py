@@ -20,7 +20,7 @@ import uuid
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from slideshow.configuration import hotspot_network, dnsmasq_text, password as config_password, playback_settings
+from slideshow.configuration import hotspot_network, dnsmasq_text, password as config_password, playback_settings, update_settings
 
 CONFIG = Path('/etc/pi-slideshow')
 AP_UNITS = ['pi-slideshow-ap', 'pi-slideshow-dns', 'pi-slideshow-hotspot']
@@ -182,6 +182,7 @@ def initialize(config=CONFIG, setup=None):
                                                    'profile_uuid': str(uuid.uuid4())}))
     network = json.loads((config / 'network.json').read_text())
     network['cec_enabled'] = setup['cec_enabled'] if setup and setup.get('cec_custom') else network.get('cec_enabled', True)
+    network['updates'] = update_settings(setup['updates'] if setup and setup.get('updates_custom') else network.get('updates'))
     network['hotspot_network'] = ap_network
     if setup:
         network.update(mode=setup.get('network_mode', 'hotspot'), home=setup.get('home'))
@@ -235,14 +236,19 @@ class Manager:
         self.settings = json.loads((self.config / 'network.json').read_text())
 
     def save(self):
-        atomic(self.config / 'network.json', json.dumps(self.settings))
+        with self.lock:
+            atomic(self.config / 'network.json', json.dumps(self.settings))
 
     def status(self):
         with self.lock:
             ap = ap_values(self.config / 'hostapd.conf')
             home = self.settings.get('home')
             photo = json.loads((self.config / 'photo-auth.json').read_text())
-            return {'cec_enabled': self.settings.get('cec_enabled', True), 'cec_status': self.cec_status,
+            from deploy import app_update
+            update = app_update.read_status()
+            return {'updates': update_settings(self.settings.get('updates')),
+                    'update_status': update, 'app_version': app_update.installed_version(),
+                    'cec_enabled': self.settings.get('cec_enabled', True), 'cec_status': self.cec_status,
                     'photo_access_enabled': photo['enabled'], 'photo_auth_version': photo['version'],
                     'available': True, 'mode': self.runtime_mode or self.settings['mode'],
                     'preferred_mode': self.settings['mode'], 'wifi_available': bool(self.wifi_interface),
@@ -254,7 +260,7 @@ class Manager:
                     'home_ssid': home['ssid'] if home else '',
                     'home_security': home['security'] if home else 'wpa',
                     'home_hidden': home['hidden'] if home else False,
-                    'busy': self.busy, 'message': self.message}
+                    'busy': self.busy or update.get('phase') in app_update.ACTIVE, 'message': self.message}
 
     def authenticate(self, password, photo=False):
         if not isinstance(password, str) or len(password) > 128:
@@ -269,6 +275,15 @@ class Manager:
         if not isinstance(payload, dict):
             raise ValueError('Expected an action object.')
         action = payload.get('action')
+        if action == 'update-source-save':
+            values = update_settings(payload.get('settings'))
+            with self.lock:
+                from deploy import app_update
+                if self.busy or app_update.read_status().get('phase') in app_update.ACTIVE:
+                    raise ValueError('Wait until the device operation finishes.')
+                self.settings['updates'] = values
+                self.save()
+            return {'ok': True}
         if action == 'cec-save':
             if type(payload.get('enabled')) is not bool:
                 raise ValueError('CEC enabled must be true or false.')
@@ -303,12 +318,18 @@ class Manager:
                 if type(seconds) in (float, int) and 0 <= seconds <= 3600:
                     self.display['frame_seconds'] = round(seconds, 3)
             return {'ok': True}
-        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save'):
+        if action not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save', 'update-check', 'update-online', 'update-upload'):
             raise ValueError('Unknown administration action.')
         values = {}
         with self.lock:
-            if self.busy:
+            from deploy import app_update
+            if self.busy or app_update.read_status().get('phase') in app_update.ACTIVE:
                 raise ValueError('A device operation is already in progress. Please wait.')
+            if action == 'update-upload':
+                token, digest = payload.get('token'), payload.get('sha256')
+                if not isinstance(token, str) or not app_update.TOKEN.fullmatch(token) or not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest):
+                    raise ValueError('Invalid update upload.')
+                values = dict(token=token, sha256=digest)
             if action == 'photo-access-save':
                 enabled = payload.get('enabled')
                 if type(enabled) is not bool:
@@ -346,6 +367,8 @@ class Manager:
                     password = old['password']
                 values = {'ssid': ssid, 'security': security, 'hidden': payload.get('hidden', False),
                           'password': validate_password(password, psk=True) if security == 'wpa' else ''}
+            if action in ('update-check', 'update-online', 'update-upload'):
+                app_update.write_status(phase='queued', message='Update request queued.', token=uuid.uuid4().hex)
             self.busy = True
             self.message = 'Applying changes. The connection may close.'
             self.jobs.put_nowait((action, values))
@@ -382,7 +405,8 @@ class Manager:
             self.status_addresses = addresses
             if not wifi:
                 self.runtime_mode = 'wired' if wired_addresses else 'no-wifi'
-            if self.busy:
+            from deploy import app_update
+            if self.busy or app_update.read_status().get('phase') in app_update.ACTIVE:
                 return
             if not wifi:
                 self.lost_since = None
@@ -461,7 +485,30 @@ class Manager:
         self.lost_since = None
 
     def execute(self, action, values):
-        if action == 'network-stop':
+        if action in ('update-check', 'update-online', 'update-upload'):
+            from deploy import app_update
+            token = uuid.uuid4().hex
+            try:
+                if action == 'update-upload':
+                    token = values['token']
+                    app_update.write_status(phase='validating', message='Securing uploaded release package.', token=token)
+                    app_update.snapshot(token, values['sha256'])
+                else:
+                    app_update.write_status(phase='checking', message='Checking GitHub releases.', token=token)
+                    release = app_update.latest(self.settings.get('updates'))
+                    app_update.write_status(phase='ready', message='Release found: ' + release['tag'], release=release)
+                    if action == 'update-check': return
+                    app_update.write_status(phase='downloading', message='Downloading ' + release['tag'])
+                    app_update.download(release, app_update.STATE / (token + '.zip'))
+                app_update.initialize(runner=self.run)
+                self.run('systemd-run', '--unit=pi-slideshow-update', '--collect', '--no-block',
+                         '/usr/bin/python3', str(app_update.STATE / 'runner.py'), '--apply', token)
+            except Exception as error:
+                (app_update.STATE / (token + '.zip')).unlink(missing_ok=True)
+                message = str(error) if isinstance(error, ValueError) else 'Update unavailable. Check internet access, GitHub repository and storage.'
+                app_update.write_status(phase='failed', message=message)
+                raise
+        elif action == 'network-stop':
             self.stop_ap()
         elif action == 'wired-connect':
             interface = values['interface']
@@ -556,6 +603,9 @@ class Manager:
 
     def monitor(self, start_network=True):
         if start_network:
+            from deploy import app_update
+            try: app_update.initialize(runner=self.run)
+            except Exception: print('Unable to initialize update recovery.', flush=True)
             # Web and HDMI are independent of slow or missing network hardware.
             self.busy = False
         previous_cpu = None

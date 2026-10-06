@@ -30,11 +30,17 @@ async function poll() {
     hotspotIP = h.ip_address;
     $('network-summary').textContent = n.mode === 'hotspot' ? 'Hotspot: ' + n.hotspot_ssid : n.mode === 'client' ? 'Connected to Wi-Fi: ' + n.home_ssid : n.mode === 'wired' ? 'Wired network connected · No Wi-Fi' : n.mode === 'no-wifi' ? 'No Wi-Fi · Slideshow works offline' : 'Network status unavailable';
     $('operation').textContent = n.message || '';
+    $('app-version').textContent = 'Installed version: ' + (n.app_version || 'Unknown');
+    const update = n.update_status || {};
+    $('update-status').textContent = (update.phase || 'idle') + ': ' + (update.message || 'No update has been started.');
+    $('update-release').textContent = update.release ? 'GitHub release: ' + update.release.tag + ' · ' + update.release.published_at : '';
+    for (const id of ['update-check', 'update-online', 'update-upload-button']) $(id).disabled = !!n.busy || pending;
+    $('update-source-form').querySelector('button').disabled = !!n.busy || pending;
     $('addresses').replaceChildren();
     for (const address of n.addresses || []) { const p = document.createElement('p'); p.textContent = address.interface + ': http://' + address.address; $('addresses').append(p); }
     $('network-hardware').textContent = (n.interfaces || []).map(i => i.name + (i.wireless ? ' (Wi-Fi)' : i.carrier ? ' (cable connected)' : ' (no cable)')).join(' · ') || 'No network adapters detected. Networking starts automatically when an adapter is connected.';
     $('cec-status').textContent = n.cec_status || 'CEC status unavailable.';
-    if (!initialized) { $('cec-enabled').checked = n.cec_enabled !== false; $('device-country').value = n.country || 'GB'; $('photo-access-enabled').checked = !!n.photo_access_enabled; const response = await fetch('/api/state'); const state = await response.json(); $('admin-folder-auto').checked = state.settings.auto_folders === true; $('admin-folder-list').replaceChildren(); for (const path of state.folders) { const label = document.createElement('label'), input = document.createElement('input'); label.className = 'check'; input.type = 'checkbox'; input.value = path; input.checked = state.settings.folders.includes(path); label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '))); $('admin-folder-list').append(label); } for (const id of ['seconds', 'fit']) $(id).value = state.settings[id]; for (const id of ['shuffle', 'recursive']) $(id).checked = state.settings[id]; $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
+    if (!initialized) { $('update-repository').value = n.updates?.repository || 'https://github.com/BinaryDynamics/SlideshowPi'; $('update-prereleases').checked = n.updates?.include_prereleases !== false; $('cec-enabled').checked = n.cec_enabled !== false; $('device-country').value = n.country || 'GB'; $('photo-access-enabled').checked = !!n.photo_access_enabled; const response = await fetch('/api/state'); const state = await response.json(); $('admin-folder-auto').checked = state.settings.auto_folders === true; $('admin-folder-list').replaceChildren(); for (const path of state.folders) { const label = document.createElement('label'), input = document.createElement('input'); label.className = 'check'; input.type = 'checkbox'; input.value = path; input.checked = state.settings.folders.includes(path); label.append(input, document.createTextNode(path.replace('/var/lib/pi-slideshow/photos', 'SD / photos').replace('/media/slideshow/', 'USB / '))); $('admin-folder-list').append(label); } for (const id of ['seconds', 'fit']) $(id).value = state.settings[id]; for (const id of ['shuffle', 'recursive']) $(id).checked = state.settings[id]; $('hotspot-ip').value = h.ip_address; $('hotspot-prefix').value = h.prefix_length; $('hotspot-dhcp-start').value = h.dhcp_start; $('hotspot-dhcp-end').value = h.dhcp_end; $('hotspot-ssid').value = n.hotspot_ssid || ''; $('home-ssid').value = n.home_ssid || ''; $('home-security').value = n.home_security || 'wpa'; $('home-hidden').checked = !!n.home_hidden; initialized = true; }
     for (const id of ['switch-hotspot', 'reboot']) $(id).disabled = !!n.busy || pending;
     for (const form of ['hotspot-form', 'home-form', 'device-form', 'password-form', 'photo-access-form', 'cec-form']) $(form).querySelector('button').disabled = !!n.busy || pending;
     $('switch-hotspot').disabled = !!n.busy || pending || n.wifi_available === false;
@@ -106,3 +112,27 @@ $('admin-folders-form').onsubmit = guarded(async () => {
 $('photo-access-form').onsubmit = guarded(async () => { await api('action', {action: 'photo-access-save', enabled: $('photo-access-enabled').checked, password: $('photo-access-password').value}); $('photo-access-password').value = ''; notice('Photo access settings accepted. Changes apply in a few seconds.'); });
 
 $('cec-form').onsubmit = guarded(async () => { await api('action', {action: 'cec-save', enabled: $('cec-enabled').checked}); notice('TV remote settings saved.'); });
+
+$('update-source-form').onsubmit = guarded(async () => {
+  await api('action', {action: 'update-source-save', settings: {repository: $('update-repository').value.trim(), include_prereleases: $('update-prereleases').checked}});
+  notice('Update source saved.'); await poll();
+});
+$('update-check').onclick = guarded(async () => { await api('action', {action: 'update-check'}); notice('Checking GitHub. Watch the update status below.'); });
+$('update-online').onclick = guarded(() => action({action: 'update-online'}, 'Install the newest published release from the saved GitHub repository? Only use a repository you trust. The slideshow will restart.', 'Update requested. Watch Application updates for progress; you may need to sign in again.'));
+$('update-upload-form').onsubmit = guarded(async () => {
+  const file = $('update-package').files[0];
+  if (!file || file.size > 64 * 1024 * 1024 - 4096) throw new Error('Choose a release ZIP smaller than 64 MB.');
+  if (!confirm('Install this release ZIP? Only use a package you trust. The slideshow will restart.')) return;
+  pending = true; $('update-upload-button').disabled = true; $('update-upload-progress').hidden = false;
+  try {
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest(), data = new FormData(); data.append('package', file);
+      xhr.open('POST', '/api/admin/update-upload'); xhr.setRequestHeader('X-Slideshow-Token', token);
+      xhr.upload.onprogress = event => { if (event.lengthComputable) $('update-upload-progress').value = event.loaded / event.total * 100; };
+      xhr.onerror = () => reject(new Error('Connection lost. Check update status before retrying.'));
+      xhr.onload = () => { try { const result = JSON.parse(xhr.responseText); if (xhr.status === 401) signedIn(false); xhr.status >= 200 && xhr.status < 300 ? resolve(result) : reject(new Error(result.error || 'Upload failed.')); } catch { reject(new Error('Upload failed.')); } };
+      xhr.send(data);
+    });
+    $('update-package').value = ''; notice('Release uploaded. Watch update status; sign in again after restart.');
+  } finally { pending = false; $('update-upload-button').disabled = false; }
+});

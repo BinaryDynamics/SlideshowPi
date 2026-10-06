@@ -38,7 +38,8 @@ def stage():
     APP.mkdir(parents=True, exist_ok=True)
     for folder in ('slideshow', 'templates', 'static', 'deploy'):
         shutil.copytree(source / folder, APP / folder, dirs_exist_ok=True)
-    for name in ('run.py', 'player.py'):
+    for name in ('run.py', 'player.py', 'VERSION'):
+        if name == 'VERSION' and not (source / name).exists(): continue
         shutil.copy2(source / name, APP / name)
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     text_config = boot_root() / 'slideshowpi.conf'

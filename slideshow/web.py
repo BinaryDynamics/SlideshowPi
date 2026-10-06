@@ -1,6 +1,7 @@
 from io import BytesIO
 from functools import wraps
 import math
+import hashlib
 import os
 from pathlib import Path
 import secrets
@@ -40,7 +41,7 @@ def open_image(path):
 
 def create_app(data=None, usb=None, start_worker=True, admin=None):
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
-    app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
     app.secret_key = secrets.token_bytes(32)
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict')
     admin = admin or AdminClient()
@@ -59,6 +60,9 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     def protect_changes():
         # Captive DNS answers arbitrary domains. Canonicalize before exposing a
         # token or photo, so DNS rebinding cannot turn an external site into a UI.
+        if request.path != '/api/admin/update-upload' and request.content_length and request.content_length > 32 * 1024 * 1024:
+            from werkzeug.exceptions import RequestEntityTooLarge
+            raise RequestEntityTooLarge()
         host = request.host.split(':', 1)[0].lower()
         network = admin.status()
         hostname = network.get('hostname', '')
@@ -82,6 +86,11 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
         admin_signed_in = time.time() - session.get('admin_since', 0) <= 3600 and session.get('auth_version') == network.get('auth_version')
         local_player = (request.environ.get('slideshow.local_playback') is True and request.method == 'GET'
                         and (request.path == '/api/state' or request.path.startswith('/api/frame/')))
+        if (request.method in ('POST', 'PUT', 'DELETE', 'PATCH')
+                and request.path.startswith('/api/') and not request.path.startswith(('/api/admin/', '/api/photo-access/'))
+                and request.path != '/api/control'
+                and network.get('update_status', {}).get('phase') in ('queued', 'checking', 'downloading', 'validating', 'installing', 'restarting', 'rolling-back')):
+            return jsonify(error='Wait for the application update to finish before editing photos or storage.'), 409
         protected_api = request.path.startswith('/api/') and not request.path.startswith(('/api/admin/', '/api/photo-access/'))
         if request.path in ('/', '/files') or protected_api:
             if not network.get('available', True) and not local_player:
@@ -122,7 +131,7 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
 
     @app.errorhandler(413)
     def too_large(error):
-        return jsonify(error='Upload one image at a time, up to 32 MB per image.'), 413
+        return jsonify(error='Release uploads are limited to 64 MB.' if request.path == '/api/admin/update-upload' else 'Upload one image at a time, up to 32 MB per image.'), 413
 
     @app.get('/')
     def index():
@@ -269,12 +278,42 @@ def create_app(data=None, usb=None, start_worker=True, admin=None):
     @app.post('/api/admin/action')
     def admin_action():
         payload = request.get_json()
-        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save', 'cec-save'):
+        if not isinstance(payload, dict) or payload.get('action') not in ('reboot', 'hotspot', 'hotspot-save', 'connect', 'admin-password', 'device-save', 'photo-access-save', 'cec-save', 'update-source-save', 'update-check', 'update-online'):
             raise ValueError('Unknown admin action.')
+        if payload['action'] == 'update-online' and (files.status() or {}).get('running'):
+            raise ValueError('Finish the current file operation before updating.')
         result = admin.call(**payload)
         if payload['action'] == 'admin-password':
             session.clear()
         return jsonify(result), 202
+
+    @app.post('/api/admin/update-upload')
+    def admin_update_upload():
+        if admin.status().get('busy') or (files.status() or {}).get('running'):
+            raise ValueError('Wait for the current device/file operation to finish.')
+        file = request.files.get('package')
+        if file is None or not (file.filename or '').lower().endswith('.zip'):
+            raise ValueError('Choose a SlideshowPi release ZIP.')
+        inbox = library.data / 'update-inbox'
+        inbox.mkdir(exist_ok=True)
+        # Remove abandoned uploads older than one day; never photo storage.
+        for old in inbox.glob('*.zip'):
+            if not old.is_symlink() and time.time() - old.stat().st_mtime > 86400: old.unlink()
+        if len(list(inbox.glob('*.zip'))) >= 2: raise ValueError('An update upload is already pending. Try again later.')
+        token = secrets.token_hex(16)
+        target = inbox / (token + '.zip')
+        digest, total = hashlib.sha256(), 0
+        try:
+            with target.open('xb') as output:
+                for chunk in iter(lambda: file.stream.read(128 * 1024), b''):
+                    total += len(chunk)
+                    if total > 64 * 1024 * 1024: raise ValueError('Release ZIP exceeds 64 MB.')
+                    digest.update(chunk); output.write(chunk)
+                output.flush(); os.fsync(output.fileno())
+            return jsonify(admin.call('update-upload', token=token, sha256=digest.hexdigest())), 202
+        except Exception:
+            target.unlink(missing_ok=True)
+            raise
 
     @app.get('/api/state')
     def state():

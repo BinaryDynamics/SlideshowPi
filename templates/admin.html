@@ -50,7 +50,7 @@
       <label class="check"><input id="shuffle" type="checkbox">Shuffle photos</label>
       <label class="check"><input id="recursive" type="checkbox">Include subfolders</label>
       <button class="primary">Save slideshow settings</button>
-    </form><form id="admin-folders-form"><h2>Photo folders</h2><label class="check"><input id="admin-folder-auto" type="checkbox">Automatically include all SD and USB photos</label><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/">Upload photos and rotate images</a></p></section>
+    </form><form id="admin-folders-form"><h2>Photo folders</h2><label class="check"><input id="admin-folder-auto" type="checkbox">Automatically include all SD and USB photos</label><div id="admin-folder-list"></div><button class="primary">Save photo folders</button></form><p><a href="/files">Add / Manage Photos</a></p></section>
     <section class="card"><h2>TV remote control (HDMI-CEC)</h2><form id="cec-form">
       <label class="check"><input id="cec-enabled" type="checkbox" checked>Enable TV remote controls</label>
       <p class="hint">Enabled by default. Left / Right: previous / next photo. OK: play / pause. Play, Pause and Stop are also supported. Enable CEC on your TV; supported buttons vary by TV. Changes apply without restarting.</p>
@@ -68,6 +68,15 @@
       <label for="confirm-admin-password">Confirm new password</label><input id="confirm-admin-password" type="password" required autocomplete="new-password" minlength="12" maxlength="128">
       <p class="hint">Use 12-128 printable characters. After saving, sign in with the new password.</p><button class="primary">Change admin password</button>
     </form></section>
+    <section class="card"><h2>Application updates</h2><p id="app-version" class="hint"></p>
+      <form id="update-source-form"><label for="update-repository">GitHub repository URL</label><input id="update-repository" type="url" required placeholder="https://github.com/BinaryDynamics/SlideshowPi">
+        <label class="check"><input id="update-prereleases" type="checkbox" checked>Include beta / prerelease versions</label>
+        <p class="hint">Use your fork's public GitHub repository URL. Releases must include a SlideshowPi.zip built with tools/package.py.</p><button>Save update source</button></form>
+      <div class="buttons"><button id="update-check">Check for updates</button><button id="update-online" class="primary">Update from GitHub</button></div>
+      <p id="update-release" class="hint"></p><p id="update-status" role="status" aria-live="polite"></p>
+      <form id="update-upload-form"><label for="update-package">Offline release ZIP</label><input id="update-package" type="file" accept=".zip,application/zip" required><button id="update-upload-button">Upload and install update</button><progress id="update-upload-progress" max="100" value="0" hidden></progress></form>
+      <p class="hint">Only install releases from a source you trust: update packages contain application code. Photos, passwords, network settings and HDMI configuration are preserved. The slideshow restarts and you may need to sign in again. Failed startup checks restore the previous application. Keep power connected until finished. OS/dependency upgrades require manual installation.</p>
+    </section>
     <section class="card"><div class="library-heading"><h2>System diagnostics</h2><button id="refresh">Refresh now</button></div>
       <p class="hint">Updates every 5 seconds. CPU use is measured between samples.</p>
       <dl id="stats" class="stats-grid"></dl>

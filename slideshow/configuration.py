@@ -6,6 +6,23 @@ import ipaddress
 import secrets
 import json
 
+
+UPDATE_DEFAULTS = dict(repository='https://github.com/BinaryDynamics/SlideshowPi', include_prereleases=True)
+
+
+def update_settings(values=None):
+    if values is not None and not isinstance(values, dict):
+        raise ValueError('Update settings must be an object.')
+    values = {**UPDATE_DEFAULTS, **(values or {})}
+    repository = values['repository']
+    if not isinstance(repository, str): raise ValueError('Enter a GitHub repository URL.')
+    repository = repository.strip().removesuffix('/').removesuffix('.git')
+    if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+', repository):
+        raise ValueError('Use https://github.com/OWNER/REPOSITORY without credentials, queries or fragments.')
+    if type(values['include_prereleases']) is not bool:
+        raise ValueError('Choose whether to include prereleases.')
+    return dict(repository=repository, include_prereleases=values['include_prereleases'])
+
 HOTSPOT_DEFAULTS = dict(ip_address='192.168.50.1', prefix_length=24,
                         dhcp_start='192.168.50.20', dhcp_end='192.168.50.200')
 
@@ -93,7 +110,7 @@ def load_config(path=None, default_country='GB'):
         raise ValueError('photo_access.password must be text.')
     if enabled or photo_password:
         photo_password = password(photo_password or secrets.token_urlsafe(18), admin=True)
-    return dict(cec_enabled=cec.get('enabled', True), cec_custom='cec' in raw, country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
+    return dict(updates=update_settings(raw.get('updates')), updates_custom='updates' in raw, cec_enabled=cec.get('enabled', True), cec_custom='cec' in raw, country=country, ssid=ssid(hotspot.get('ssid', 'SlideshowPi')), password=password(hotspot.get('password') or secrets.token_urlsafe(12)),
                 admin_password=password(raw.get('admin', {}).get('password') or secrets.token_urlsafe(18), admin=True),
                 network_mode=mode, home=home, photo_access=dict(enabled=enabled, password=photo_password),
                 photo_access_custom='photo_access' in raw, playback=playback_settings(raw.get('slideshow', {})),
@@ -117,7 +134,7 @@ def playback_settings(values):
 
 def config_text(setup):
     """Write resolved defaults, so generated passwords remain stable between boots."""
-    sections = dict(cec=dict(enabled=setup.get('cec_enabled', True)), device=dict(country=setup['country']),
+    sections = dict(updates=setup.get('updates', UPDATE_DEFAULTS), cec=dict(enabled=setup.get('cec_enabled', True)), device=dict(country=setup['country']),
                     hotspot=dict(ssid=setup['ssid'], password=setup['password'], **setup['hotspot_network']),
                     admin=dict(password=setup['admin_password']), photo_access=setup.get('photo_access', dict(enabled=False, password='')), network=dict(mode=setup['network_mode']),
                     home_wifi=setup.get('home') or dict(ssid='', password='', security='wpa', hidden=False),

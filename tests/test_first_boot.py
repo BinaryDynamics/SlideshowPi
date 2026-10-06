@@ -16,7 +16,7 @@ def test_stage_copies_app_writes_private_config_and_queues_service(tmp_path, mon
     for folder in ('slideshow', 'templates', 'static', 'deploy'):
         (source / folder).mkdir(parents=True)
         (source / folder / 'sample').write_text('payload')
-    for name in ('run.py', 'player.py', 'deploy/install.sh', 'deploy/pi-slideshow-install.service'):
+    for name in ('run.py', 'player.py', 'VERSION', 'deploy/install.sh', 'deploy/pi-slideshow-install.service'):
         (source / name).write_text('payload')
     setup = {'country': 'ZA', 'ssid': 'test-hotspot', 'password': 'test-only-password'}
     (source / 'setup.json').write_text(json.dumps(setup))

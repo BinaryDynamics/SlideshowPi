@@ -12,7 +12,7 @@ import traceback
 FILES = ['player.py', 'run.py', 'slideshow/web.py', 'slideshow/admin_client.py',
          'slideshow/configuration.py', 'templates/index.html', 'templates/admin.html', 'templates/photo_login.html',
          'static/admin.js', 'static/app.js', 'static/photo_login.js', 'static/style.css', 'deploy/admin_service.py',
-         'deploy/pi-slideshow-admin.service', 'deploy/pi-slideshow-web.service', 'deploy/hotspot-start.sh', 'slideshow/cec.py', 'slideshow/core.py', 'slideshow/files.py', 'templates/files.html', 'static/files.js', 'slideshow/network.py', 'slideshow/playlist.py']
+         'deploy/pi-slideshow-admin.service', 'deploy/pi-slideshow-web.service', 'deploy/hotspot-start.sh', 'slideshow/cec.py', 'slideshow/core.py', 'slideshow/files.py', 'templates/files.html', 'static/files.js', 'slideshow/network.py', 'slideshow/playlist.py', 'deploy/app_update.py', 'VERSION']
 NM_CONFIG = '[device-pi-slideshow]\nmatch-device=interface-name:wlan0\nmanaged=0\n'
 
 
